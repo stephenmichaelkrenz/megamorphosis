@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { safeRedirectPath } from "@/lib/redirect";
 import { supabase } from "@/lib/supabaseClient";
@@ -12,7 +12,8 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = async () => {
+  const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     setLoading(true);
 
     const { error } = await supabase.auth.signInWithPassword({
@@ -37,31 +38,31 @@ export default function LoginPage() {
     <main className="narrow-shell">
       <h1 className="mb-6 text-2xl font-bold">Log In</h1>
 
-      <input
-        className="field mb-3"
-        placeholder="Email"
-        type="email"
-        autoComplete="email"
-        value={email}
-        onChange={(event) => setEmail(event.target.value)}
-      />
+      <form onSubmit={handleLogin}>
+        <input
+          className="field mb-3"
+          placeholder="Email"
+          type="email"
+          autoComplete="email"
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          required
+        />
 
-      <input
-        className="field mb-4"
-        type="password"
-        placeholder="Password"
-        autoComplete="current-password"
-        value={password}
-        onChange={(event) => setPassword(event.target.value)}
-      />
+        <input
+          className="field mb-4"
+          type="password"
+          placeholder="Password"
+          autoComplete="current-password"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          required
+        />
 
-      <button
-        onClick={handleLogin}
-        disabled={loading}
-        className="btn-primary"
-      >
-        {loading ? "Logging in..." : "Log In"}
-      </button>
+        <button disabled={loading} className="btn-primary" type="submit">
+          {loading ? "Logging in..." : "Log In"}
+        </button>
+      </form>
 
       <div className="mt-5 space-y-2 text-sm">
         <Link href="/auth/forgot-password" className="font-semibold">

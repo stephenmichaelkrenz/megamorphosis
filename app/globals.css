@@ -99,6 +99,9 @@ textarea {
 }
 
 .btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border-radius: 6px;
   background: var(--foreground);
   color: var(--background);
@@ -108,6 +111,9 @@ textarea {
 }
 
 .btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--surface);
@@ -148,4 +154,18 @@ textarea {
   border-radius: 6px;
   padding: 0.5rem 0.75rem;
   font-size: 0.875rem;
+}
+
+@media (max-width: 480px) {
+  .page-shell,
+  .narrow-shell,
+  .wide-shell {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .mobile-stack-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
 }

@@ -273,6 +273,9 @@ export default function HomePage() {
     );
   };
 
+  const formatCount = (count: number, singular: string, plural = `${singular}s`) =>
+    `${count} ${count === 1 ? singular : plural}`;
+
   return (
     <main className="page-shell">
       <section className="mb-10 text-center">
@@ -282,7 +285,7 @@ export default function HomePage() {
         <p className="muted mt-4 text-lg">Track your transformation.</p>
 
         {!loading && (
-          <div className="mt-6 flex justify-center gap-3">
+          <div className="mobile-stack-actions mt-6 flex justify-center gap-3">
             {currentUsername ? (
               <>
                 <Link href="/dashboard" className="btn-primary">
@@ -425,10 +428,10 @@ export default function HomePage() {
                     <Link href={`/journey/${journey.id}`} className="block">
                       <div className="mb-3 flex flex-wrap items-center gap-2">
                         <span className="metric-pill">
-                          {journey.update_count} updates
+                          {formatCount(journey.update_count, "update")}
                         </span>
                         <span className="metric-pill">
-                          {journey.respect_count} respect
+                          {formatCount(journey.respect_count, "respect")}
                         </span>
                       </div>
                       <h3 className="text-lg font-bold">{journey.title}</h3>
@@ -436,7 +439,11 @@ export default function HomePage() {
                         {journey.category || "Transformation"} by{" "}
                         {username ? `@${username}` : displayName}
                       </p>
-                      <p className="mt-3 text-sm leading-6">{journey.goal_text}</p>
+                      {journey.goal_text && (
+                        <p className="mt-3 text-sm leading-6">
+                          {journey.goal_text}
+                        </p>
+                      )}
                     </Link>
                   </article>
                 );
