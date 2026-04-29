@@ -329,7 +329,7 @@ export default function NotificationsPage() {
     if (notification.target_type === "post") {
       const post = posts[notification.target_id];
       return {
-        href: "/",
+        href: post ? `/#post-${post.id}` : "/",
         message: `${actorName} gave Respect to your post.`,
         detail: post ? snippet(post.content) : "Feed post",
       };
@@ -338,7 +338,9 @@ export default function NotificationsPage() {
     if (notification.target_type === "comment") {
       const comment = comments[notification.target_id];
       return {
-        href: comment ? `/journey/${comment.journey_id}` : "/dashboard",
+        href: comment
+          ? `/journey/${comment.journey_id}#comments-${comment.journey_update_id}`
+          : "/dashboard",
         message: `${actorName} commented on your journey update.`,
         detail: comment ? snippet(comment.body) : "Comment",
       };
@@ -347,7 +349,7 @@ export default function NotificationsPage() {
     if (notification.target_type === "post_comment") {
       const comment = postComments[notification.target_id];
       return {
-        href: comment ? `/#post-${comment.post_id}` : "/",
+        href: comment ? `/#post-comments-${comment.post_id}` : "/",
         message: `${actorName} commented on your feed post.`,
         detail: comment ? snippet(comment.body) : "Comment",
       };
@@ -380,10 +382,28 @@ export default function NotificationsPage() {
 
     const update = journeyUpdates[notification.target_id];
     return {
-      href: update ? `/journey/${update.journey_id}` : "/dashboard",
+      href: update
+        ? `/journey/${update.journey_id}#comments-${update.id}`
+        : "/dashboard",
       message: `${actorName} gave Respect to your journey update.`,
       detail: update ? snippet(update.text) : "Journey update",
     };
+  };
+
+  const markNotificationRead = async (notification: Notification) => {
+    if (notification.read_at !== null) return;
+
+    const readAt = new Date().toISOString();
+    setNotifications((current) =>
+      current.map((item) =>
+        item.id === notification.id ? { ...item, read_at: readAt } : item,
+      ),
+    );
+
+    await supabase
+      .from("notifications")
+      .update({ read_at: readAt })
+      .eq("id", notification.id);
   };
 
   if (loading) {
@@ -417,22 +437,35 @@ export default function NotificationsPage() {
         <div className="space-y-3">
           {notifications.map((notification) => {
             const item = renderNotification(notification);
+            const isUnread = notification.read_at === null;
 
             return (
               <Link
                 key={notification.id}
                 href={item.href}
-                className="link-panel"
+                className={`link-panel ${
+                  isUnread
+                    ? "border-[var(--foreground)] bg-[var(--surface-muted)]"
+                    : ""
+                }`}
+                onClick={() => {
+                  void markNotificationRead(notification);
+                }}
               >
                 <div className="flex items-start gap-3">
                   <span
                     className={`mt-1 h-2.5 w-2.5 rounded-full ${
-                      notification.read_at ? "bg-transparent" : "bg-current"
+                      isUnread ? "bg-current" : "bg-transparent"
                     }`}
                     aria-hidden="true"
                   />
                   <div className="min-w-0 flex-1">
-                    <p className="font-semibold">{item.message}</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-semibold">{item.message}</p>
+                      <span className="metric-pill text-xs">
+                        {isUnread ? "Unread" : "Read"}
+                      </span>
+                    </div>
                     <p className="muted mt-1 text-sm">{item.detail}</p>
                     <time className="muted mt-3 block text-xs font-semibold uppercase">
                       {new Date(notification.created_at).toLocaleString()}
