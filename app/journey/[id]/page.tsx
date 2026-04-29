@@ -50,7 +50,7 @@ const profileLabel = (profile?: ProfileSummary) =>
   profile?.display_name || (profile?.username ? `@${profile.username}` : "Someone");
 
 const commentActionLabel = (commentCount: number) => {
-  if (commentCount === 0) return "Comment";
+  if (commentCount === 0) return "Comment on update";
   if (commentCount === 1) return "1 Comment";
   return `${commentCount} Comments`;
 };
@@ -1104,7 +1104,7 @@ export default function JourneyPage() {
                       initiallyRespected={update.respected_by_me}
                     />
                     <a
-                      className="btn-secondary"
+                      className="btn-secondary border-[var(--foreground)]"
                       href={`#comments-${update.id}`}
                       aria-label="Comment on this journey update"
                     >
