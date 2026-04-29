@@ -106,7 +106,7 @@ export default function PostComments({
   const deleteOwnComment = async (comment: PostComment) => {
     const { error } = await supabase
       .from("post_comments")
-      .update({ deleted_at: new Date().toISOString() })
+      .delete()
       .eq("id", comment.id);
 
     if (error) {
