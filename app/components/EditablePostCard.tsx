@@ -15,12 +15,6 @@ type EditablePost = Pick<
   comment_count?: number;
 };
 
-const commentActionLabel = (commentCount: number) => {
-  if (commentCount === 0) return "Comment";
-  if (commentCount === 1) return "1 Comment";
-  return `${commentCount} Comments`;
-};
-
 export default function EditablePostCard({
   post,
   canEdit,
@@ -126,13 +120,6 @@ export default function EditablePostCard({
               initialCount={post.respect_count}
               initiallyRespected={post.respected_by_me}
             />
-            <a
-              className="btn-secondary border-[var(--foreground)]"
-              href={`#post-comments-${post.id}`}
-              aria-label="Comment on this feed post"
-            >
-              {commentActionLabel(commentCount)}
-            </a>
 
             {canEdit && (
               <button className="btn-secondary" onClick={() => setEditing(true)}>
