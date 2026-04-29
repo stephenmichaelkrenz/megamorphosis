@@ -30,6 +30,11 @@ type DiscoverJourney = Journey & {
   profile?: Pick<DiscoverProfile, "id" | "username" | "display_name">;
 };
 
+type Notice = {
+  type: "error" | "success";
+  message: string;
+};
+
 export default function DiscoverPage() {
   const [circles, setCircles] = useState<DiscoverCircle[]>([]);
   const [profiles, setProfiles] = useState<DiscoverProfile[]>([]);
@@ -40,6 +45,7 @@ export default function DiscoverPage() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [followingIds, setFollowingIds] = useState<Set<string>>(new Set());
   const [workingFollowId, setWorkingFollowId] = useState<string | null>(null);
+  const [notice, setNotice] = useState<Notice | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -206,19 +212,20 @@ export default function DiscoverPage() {
 
   const toggleFollow = async (profile: DiscoverProfile) => {
     if (!currentUserId) {
-      alert("Log in to follow people.");
+      setNotice({ type: "error", message: "Log in to follow people." });
       return;
     }
 
     const isFollowing = followingIds.has(profile.id);
     setWorkingFollowId(profile.id);
+    setNotice(null);
     const { error } = isFollowing
       ? await unfollowUser(profile.id)
       : await followUser(profile.id);
 
     if (error) {
       setWorkingFollowId(null);
-      alert(error.message);
+      setNotice({ type: "error", message: error.message });
       return;
     }
 
@@ -234,6 +241,10 @@ export default function DiscoverPage() {
       return next;
     });
     setWorkingFollowId(null);
+    setNotice({
+      type: "success",
+      message: isFollowing ? "Unfollowed." : "Following added.",
+    });
   };
 
   const renderFollowButton = (targetUserId: string) => {
@@ -270,6 +281,11 @@ export default function DiscoverPage() {
         <p className="muted mt-2">
           Find people making progress and journeys worth following.
         </p>
+        {notice && (
+          <p className={`notice notice-${notice.type} mt-4`}>
+            {notice.message}
+          </p>
+        )}
       </section>
 
       <section className="mb-10">
@@ -281,7 +297,13 @@ export default function DiscoverPage() {
         </div>
 
         {circles.length === 0 ? (
-          <p className="muted panel">No circles yet.</p>
+          <div className="panel">
+            <p className="font-semibold">No Circles yet.</p>
+            <p className="muted mt-2 text-sm">
+              Public Circles will appear here as the community forms around
+              shared transformations.
+            </p>
+          </div>
         ) : (
           <div className="grid gap-3 md:grid-cols-2">
             {circles.map((circle) => (
@@ -309,7 +331,13 @@ export default function DiscoverPage() {
         <h2 className="section-heading mb-3">People</h2>
 
         {profiles.length === 0 ? (
-          <p className="muted panel">No public profiles yet.</p>
+          <div className="panel">
+            <p className="font-semibold">No public profiles yet.</p>
+            <p className="muted mt-2 text-sm">
+              Onboarded members will show up here once profiles are ready to
+              browse.
+            </p>
+          </div>
         ) : (
           <div className="grid gap-3 md:grid-cols-2">
             {profiles.map((profile) => {
@@ -376,7 +404,13 @@ export default function DiscoverPage() {
         <h2 className="section-heading mb-3">Recent Journeys</h2>
 
         {journeys.length === 0 ? (
-          <p className="muted panel">No journeys yet.</p>
+          <div className="panel">
+            <p className="font-semibold">No public journeys yet.</p>
+            <p className="muted mt-2 text-sm">
+              Public transformation stories will appear here as people start
+              posting proof.
+            </p>
+          </div>
         ) : (
           <div className="space-y-3">
             {journeys.map((journey) => (

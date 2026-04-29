@@ -3,6 +3,11 @@
 import { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
+type Notice = {
+  type: "error" | "success";
+  message: string;
+};
+
 export default function UploadUpdateForm({
   journeyId,
   currentUserId,
@@ -22,20 +27,23 @@ export default function UploadUpdateForm({
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [fileInputKey, setFileInputKey] = useState(0);
   const [posting, setPosting] = useState(false);
+  const [notice, setNotice] = useState<Notice | null>(null);
 
   const submitUpdate = async () => {
     const trimmedText = text.trim();
 
     if (!trimmedText) {
-      alert("Update text is required.");
+      setNotice({ type: "error", message: "Update text is required." });
       return;
     }
 
     setPosting(true);
+    setNotice(null);
 
     if (!currentUserId) {
       setPosting(false);
-      return alert("Not logged in");
+      setNotice({ type: "error", message: "Log in to post an update." });
+      return;
     }
 
     let finalImageUrl = imageUrl.trim() || null;
@@ -43,13 +51,19 @@ export default function UploadUpdateForm({
     if (imageFile) {
       if (!imageFile.type.startsWith("image/")) {
         setPosting(false);
-        alert("Evidence upload must be an image.");
+        setNotice({
+          type: "error",
+          message: "Evidence upload must be an image.",
+        });
         return;
       }
 
       if (imageFile.size > 5 * 1024 * 1024) {
         setPosting(false);
-        alert("Evidence image must be 5MB or smaller.");
+        setNotice({
+          type: "error",
+          message: "Evidence image must be 5MB or smaller.",
+        });
         return;
       }
 
@@ -66,7 +80,7 @@ export default function UploadUpdateForm({
 
       if (uploadError) {
         setPosting(false);
-        alert(uploadError.message);
+        setNotice({ type: "error", message: uploadError.message });
         return;
       }
 
@@ -91,7 +105,8 @@ export default function UploadUpdateForm({
 
     if (error) {
       setPosting(false);
-      return alert(error.message);
+      setNotice({ type: "error", message: error.message });
+      return;
     }
 
     setText("");
@@ -104,6 +119,7 @@ export default function UploadUpdateForm({
     setImageFile(null);
     setFileInputKey((key) => key + 1);
     setPosting(false);
+    setNotice({ type: "success", message: "Update posted." });
     onPosted?.();
   };
 
@@ -123,6 +139,12 @@ export default function UploadUpdateForm({
         value={text}
         onChange={(e) => setText(e.target.value)}
       />
+
+      {notice && (
+        <p className={`notice notice-${notice.type} mt-3`}>
+          {notice.message}
+        </p>
+      )}
 
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <input

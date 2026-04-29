@@ -41,6 +41,11 @@ type ProfileSummary = {
   display_name: string | null;
 };
 
+type Notice = {
+  type: "error" | "success";
+  message: string;
+};
+
 const profileLabel = (profile?: ProfileSummary) =>
   profile?.display_name || (profile?.username ? `@${profile.username}` : "Someone");
 
@@ -76,6 +81,7 @@ export default function JourneyPage() {
   const [updateNextStep, setUpdateNextStep] = useState("");
   const [updateImageUrl, setUpdateImageUrl] = useState("");
   const [savingUpdate, setSavingUpdate] = useState(false);
+  const [notice, setNotice] = useState<Notice | null>(null);
 
   const fetchJourneyData = useCallback(async () => {
     const [
@@ -270,15 +276,19 @@ export default function JourneyPage() {
     const trimmedTitle = milestoneTitle.trim();
 
     if (!trimmedTitle) {
-      alert("Milestone title is required.");
+      setNotice({ type: "error", message: "Milestone title is required." });
       return;
     }
 
     setSavingMilestone(true);
+    setNotice(null);
 
     if (!currentUserId) {
       setSavingMilestone(false);
-      alert("You must be logged in to add milestones.");
+      setNotice({
+        type: "error",
+        message: "You must be logged in to add milestones.",
+      });
       return;
     }
 
@@ -291,7 +301,7 @@ export default function JourneyPage() {
 
     if (error) {
       setSavingMilestone(false);
-      alert(error.message);
+      setNotice({ type: "error", message: error.message });
       return;
     }
 
@@ -299,6 +309,7 @@ export default function JourneyPage() {
     setMilestoneTargetDate("");
     setSavingMilestone(false);
     await refreshJourney();
+    setNotice({ type: "success", message: "Milestone added." });
   };
 
   const toggleMilestone = async (milestone: JourneyMilestone) => {
@@ -310,11 +321,15 @@ export default function JourneyPage() {
       .eq("id", milestone.id);
 
     if (error) {
-      alert(error.message);
+      setNotice({ type: "error", message: error.message });
       return;
     }
 
     await refreshJourney();
+    setNotice({
+      type: "success",
+      message: milestone.completed_at ? "Milestone reopened." : "Milestone completed.",
+    });
   };
 
   const startEditingJourney = () => {
@@ -345,11 +360,12 @@ export default function JourneyPage() {
     const trimmedTitle = journeyTitle.trim();
 
     if (!trimmedTitle) {
-      alert("Journey title is required.");
+      setNotice({ type: "error", message: "Journey title is required." });
       return;
     }
 
     setSavingJourney(true);
+    setNotice(null);
 
     const { error } = await supabase
       .from("journeys")
@@ -364,25 +380,30 @@ export default function JourneyPage() {
 
     if (error) {
       setSavingJourney(false);
-      alert(error.message);
+      setNotice({ type: "error", message: error.message });
       return;
     }
 
     setEditingJourney(false);
     setSavingJourney(false);
     await refreshJourney();
+    setNotice({ type: "success", message: "Journey saved." });
   };
 
   const toggleCircleLink = async (circle: JourneyCircle) => {
     if (!journey || !currentUserId || !isOwner) return;
 
     if (journey.visibility !== "public") {
-      alert("Only public journeys can be linked to Circles.");
+      setNotice({
+        type: "error",
+        message: "Only public journeys can be linked to Circles.",
+      });
       return;
     }
 
     const isLinked = linkedCircleIds.has(circle.id);
     setSavingCircleId(circle.id);
+    setNotice(null);
 
     const { error } = isLinked
       ? await detachJourneyFromCircle({
@@ -397,7 +418,7 @@ export default function JourneyPage() {
 
     if (error) {
       setSavingCircleId(null);
-      alert(error.message);
+      setNotice({ type: "error", message: error.message });
       return;
     }
 
@@ -413,6 +434,12 @@ export default function JourneyPage() {
       return next;
     });
     setSavingCircleId(null);
+    setNotice({
+      type: "success",
+      message: isLinked
+        ? `Removed from ${circle.name}.`
+        : `Attached to ${circle.name}.`,
+    });
   };
 
   const toggleArchiveJourney = async () => {
@@ -426,11 +453,15 @@ export default function JourneyPage() {
       .eq("id", journeyId);
 
     if (error) {
-      alert(error.message);
+      setNotice({ type: "error", message: error.message });
       return;
     }
 
     await refreshJourney();
+    setNotice({
+      type: "success",
+      message: journey.archived_at ? "Journey restored." : "Journey archived.",
+    });
   };
 
   const startEditingUpdate = (update: JourneyUpdateWithRespect) => {
@@ -453,11 +484,12 @@ export default function JourneyPage() {
     const trimmedText = updateText.trim();
 
     if (!trimmedText) {
-      alert("Update text is required.");
+      setNotice({ type: "error", message: "Update text is required." });
       return;
     }
 
     setSavingUpdate(true);
+    setNotice(null);
 
     const { error } = await supabase
       .from("journey_updates")
@@ -474,13 +506,14 @@ export default function JourneyPage() {
 
     if (error) {
       setSavingUpdate(false);
-      alert(error.message);
+      setNotice({ type: "error", message: error.message });
       return;
     }
 
     setEditingUpdateId(null);
     setSavingUpdate(false);
     await refreshJourney();
+    setNotice({ type: "success", message: "Update saved." });
   };
 
   const deleteUpdate = async (update: JourneyUpdateWithRespect) => {
@@ -496,11 +529,17 @@ export default function JourneyPage() {
       .eq("id", update.id);
 
     if (error) {
-      alert(error.message);
+      setNotice({ type: "error", message: error.message });
       return;
     }
 
     await refreshJourney();
+    setNotice({ type: "success", message: "Update deleted." });
+  };
+
+  const handleUpdatePosted = async () => {
+    await refreshJourney();
+    setNotice({ type: "success", message: "Update posted." });
   };
 
   if (loading) {
@@ -562,6 +601,12 @@ export default function JourneyPage() {
             This journey is hidden from normal lists and public discovery.
           </p>
         </div>
+      )}
+
+      {notice && (
+        <p className={`notice notice-${notice.type} mt-4`}>
+          {notice.message}
+        </p>
       )}
 
       {journey.goal_text && <p className="mt-4">{journey.goal_text}</p>}
@@ -783,7 +828,12 @@ export default function JourneyPage() {
         )}
 
         {milestones.length === 0 ? (
-          <p className="muted panel">No milestones yet.</p>
+          <div className="panel">
+            <p className="font-semibold">No milestones yet.</p>
+            <p className="muted mt-2 text-sm">
+              Milestones turn a transformation into visible checkpoints.
+            </p>
+          </div>
         ) : (
           <div className="space-y-3">
             {milestones.map((milestone) => (
@@ -839,7 +889,7 @@ export default function JourneyPage() {
           <UploadUpdateForm
             journeyId={journeyId}
             currentUserId={currentUserId}
-            onPosted={refreshJourney}
+            onPosted={handleUpdatePosted}
           />
         </section>
       )}
@@ -851,9 +901,13 @@ export default function JourneyPage() {
         </div>
 
         {updates.length === 0 && (
-          <p className="muted panel">
-            No updates yet. Post the first proof of progress.
-          </p>
+          <div className="panel">
+            <p className="font-semibold">No updates yet.</p>
+            <p className="muted mt-2 text-sm">
+              Post the first proof of progress when there is something real to
+              mark.
+            </p>
+          </div>
         )}
 
         <div className="space-y-3">

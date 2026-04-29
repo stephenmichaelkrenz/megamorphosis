@@ -12,6 +12,10 @@ type CircleWithCounts = Circle & {
 };
 
 type CircleFilter = "all" | "joined" | "created";
+type Notice = {
+  type: "error" | "success";
+  message: string;
+};
 
 export default function CirclesPage() {
   const [circles, setCircles] = useState<CircleWithCounts[]>([]);
@@ -19,6 +23,7 @@ export default function CirclesPage() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [workingCircleId, setWorkingCircleId] = useState<string | null>(null);
   const [filter, setFilter] = useState<CircleFilter>("all");
+  const [notice, setNotice] = useState<Notice | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -95,12 +100,13 @@ export default function CirclesPage() {
 
   const toggleMembership = async (circle: CircleWithCounts) => {
     if (!currentUserId) {
-      alert("Log in to join circles.");
+      setNotice({ type: "error", message: "Log in to join Circles." });
       return;
     }
 
     const isJoined = joinedCircleIds.has(circle.id);
     setWorkingCircleId(circle.id);
+    setNotice(null);
 
     const { error } = isJoined
       ? await leaveCircle(circle.id, currentUserId)
@@ -108,7 +114,7 @@ export default function CirclesPage() {
 
     if (error) {
       setWorkingCircleId(null);
-      alert(error.message);
+      setNotice({ type: "error", message: error.message });
       return;
     }
 
@@ -137,6 +143,12 @@ export default function CirclesPage() {
       ),
     );
     setWorkingCircleId(null);
+    setNotice({
+      type: "success",
+      message: isJoined
+        ? `Left ${circle.name}.`
+        : `Joined ${circle.name}.`,
+    });
   };
 
   if (loading) {
@@ -210,10 +222,22 @@ export default function CirclesPage() {
             </button>
           </div>
         )}
+
+        {notice && (
+          <p className={`notice notice-${notice.type} mt-4`}>
+            {notice.message}
+          </p>
+        )}
       </section>
 
       {filteredCircles.length === 0 ? (
-        <p className="muted panel">{emptyMessage}</p>
+        <div className="panel">
+          <p className="font-semibold">{emptyMessage}</p>
+          <p className="muted mt-2 text-sm">
+            Circles are where people gather around a shared kind of change.
+            Create one when you are ready to lead the room.
+          </p>
+        </div>
       ) : (
         <div className="grid gap-3 md:grid-cols-2">
           {filteredCircles.map((circle) => {

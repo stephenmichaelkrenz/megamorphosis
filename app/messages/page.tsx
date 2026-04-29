@@ -14,6 +14,11 @@ type Conversation = {
   unread_count: number;
 };
 
+type Notice = {
+  type: "error" | "success";
+  message: string;
+};
+
 const profileName = (profile?: ProfileSummary | null) =>
   profile?.display_name || (profile?.username ? `@${profile.username}` : "Member");
 
@@ -39,6 +44,7 @@ export default function MessagesPage() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [blocking, setBlocking] = useState(false);
+  const [notice, setNotice] = useState<Notice | null>(null);
 
   const loadMessages = useCallback(
     async (preferredUserId?: string | null) => {
@@ -249,6 +255,7 @@ export default function MessagesPage() {
   }, [currentUserId, selectedUserId, thread]);
 
   const chooseConversation = (profileId: string) => {
+    setNotice(null);
     setSelectedUserId(profileId);
     setRecipientUsername(profiles[profileId]?.username ?? "");
   };
@@ -263,6 +270,7 @@ export default function MessagesPage() {
     if (!confirmed) return;
 
     setBlocking(true);
+    setNotice(null);
 
     const { error } = await supabase.from("user_blocks").upsert({
       blocker_id: currentUserId,
@@ -271,7 +279,7 @@ export default function MessagesPage() {
 
     if (error) {
       setBlocking(false);
-      alert(error.message);
+      setNotice({ type: "error", message: error.message });
       return;
     }
 
@@ -281,6 +289,10 @@ export default function MessagesPage() {
     window.history.replaceState(null, "", "/messages");
     await loadMessages(null);
     setBlocking(false);
+    setNotice({
+      type: "success",
+      message: `${profileName(selectedProfile)} has been blocked.`,
+    });
   };
 
   const sendMessage = async () => {
@@ -293,16 +305,17 @@ export default function MessagesPage() {
     }
 
     if (!username) {
-      alert("Recipient username is required.");
+      setNotice({ type: "error", message: "Recipient username is required." });
       return;
     }
 
     if (!trimmedBody) {
-      alert("Message text is required.");
+      setNotice({ type: "error", message: "Message text is required." });
       return;
     }
 
     setSending(true);
+    setNotice(null);
 
     const { data: recipient, error: recipientError } = await supabase
       .from("profiles")
@@ -312,13 +325,13 @@ export default function MessagesPage() {
 
     if (recipientError || !recipient) {
       setSending(false);
-      alert("Could not find that username.");
+      setNotice({ type: "error", message: "Could not find that username." });
       return;
     }
 
     if (recipient.id === currentUserId) {
       setSending(false);
-      alert("You cannot send a DM to yourself.");
+      setNotice({ type: "error", message: "You cannot send a DM to yourself." });
       return;
     }
 
@@ -330,7 +343,7 @@ export default function MessagesPage() {
 
     if (error) {
       setSending(false);
-      alert(error.message);
+      setNotice({ type: "error", message: error.message });
       return;
     }
 
@@ -340,6 +353,7 @@ export default function MessagesPage() {
     setBody("");
     setSending(false);
     await loadMessages(recipient.id);
+    setNotice({ type: "success", message: "Message sent." });
   };
 
   if (loading) {
@@ -353,6 +367,11 @@ export default function MessagesPage() {
         <p className="muted mt-2">
           Private conversations with other Megamorphosis members.
         </p>
+        {notice && (
+          <p className={`notice notice-${notice.type} mt-4`}>
+            {notice.message}
+          </p>
+        )}
       </section>
 
       <div className="grid gap-4 lg:grid-cols-[18rem_1fr]">
@@ -360,7 +379,10 @@ export default function MessagesPage() {
           <h2 className="font-semibold">Conversations</h2>
           {conversations.length === 0 ? (
             <div className="mt-3 space-y-2">
-              <p className="muted text-sm">No direct messages yet.</p>
+              <p className="font-semibold text-sm">No direct messages yet.</p>
+              <p className="muted text-sm">
+                Start with someone whose journey you want to support privately.
+              </p>
               <Link href="/discover" className="text-sm font-semibold">
                 Find people to message
               </Link>

@@ -20,6 +20,11 @@ const reportReasons = [
   "Other",
 ];
 
+type Notice = {
+  type: "error" | "success";
+  message: string;
+};
+
 export default function JourneyUpdateComments({
   journeyId,
   updateId,
@@ -35,6 +40,7 @@ export default function JourneyUpdateComments({
   const [body, setBody] = useState("");
   const [posting, setPosting] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [notice, setNotice] = useState<Notice | null>(null);
 
   const loadComments = useCallback(async () => {
     const { data: commentData } = await supabase
@@ -72,15 +78,16 @@ export default function JourneyUpdateComments({
     const trimmedBody = body.trim();
 
     if (!trimmedBody) {
-      alert("Comment text is required.");
+      setNotice({ type: "error", message: "Comment text is required." });
       return;
     }
 
     setPosting(true);
+    setNotice(null);
 
     if (!currentUserId) {
       setPosting(false);
-      alert("Log in to comment.");
+      setNotice({ type: "error", message: "Log in to comment." });
       return;
     }
 
@@ -93,13 +100,14 @@ export default function JourneyUpdateComments({
 
     if (error) {
       setPosting(false);
-      alert(error.message);
+      setNotice({ type: "error", message: error.message });
       return;
     }
 
     setBody("");
     setPosting(false);
     await loadComments();
+    setNotice({ type: "success", message: "Comment posted." });
   };
 
   const deleteOwnComment = async (comment: JourneyUpdateComment) => {
@@ -109,11 +117,12 @@ export default function JourneyUpdateComments({
       .eq("id", comment.id);
 
     if (error) {
-      alert(error.message);
+      setNotice({ type: "error", message: error.message });
       return;
     }
 
     await loadComments();
+    setNotice({ type: "success", message: "Comment deleted." });
   };
 
   const toggleHidden = async (comment: JourneyUpdateComment) => {
@@ -126,11 +135,15 @@ export default function JourneyUpdateComments({
       .eq("id", comment.id);
 
     if (error) {
-      alert(error.message);
+      setNotice({ type: "error", message: error.message });
       return;
     }
 
     await loadComments();
+    setNotice({
+      type: "success",
+      message: comment.hidden_at ? "Comment visible again." : "Comment hidden.",
+    });
   };
 
   const reportComment = async (comment: JourneyUpdateComment) => {
@@ -143,7 +156,7 @@ export default function JourneyUpdateComments({
     if (!trimmedReason) return;
 
     if (!currentUserId) {
-      alert("Log in to report comments.");
+      setNotice({ type: "error", message: "Log in to report comments." });
       return;
     }
 
@@ -154,21 +167,21 @@ export default function JourneyUpdateComments({
     });
 
     if (error) {
-      alert(error.message);
+      setNotice({ type: "error", message: error.message });
       return;
     }
 
-    alert("Report submitted.");
+    setNotice({ type: "success", message: "Report submitted." });
   };
 
   const blockUser = async (blockedUserId: string) => {
     if (!currentUserId) {
-      alert("Log in to block users.");
+      setNotice({ type: "error", message: "Log in to block users." });
       return;
     }
 
     if (currentUserId === blockedUserId) {
-      alert("You cannot block yourself.");
+      setNotice({ type: "error", message: "You cannot block yourself." });
       return;
     }
 
@@ -178,11 +191,12 @@ export default function JourneyUpdateComments({
     });
 
     if (error) {
-      alert(error.message);
+      setNotice({ type: "error", message: error.message });
       return;
     }
 
     await loadComments();
+    setNotice({ type: "success", message: "User blocked." });
   };
 
   return (
@@ -192,10 +206,18 @@ export default function JourneyUpdateComments({
         <span className="muted text-xs">{comments.length}</span>
       </div>
 
+      {notice && (
+        <p className={`notice notice-${notice.type} mb-3`}>
+          {notice.message}
+        </p>
+      )}
+
       {loading ? (
         <p className="muted text-sm">Loading comments...</p>
       ) : comments.length === 0 ? (
-        <p className="muted text-sm">No comments yet.</p>
+        <p className="muted text-sm">
+          No comments yet. Be the first to add support or a useful question.
+        </p>
       ) : (
         <div className="space-y-3">
           {comments.map((comment) => {
