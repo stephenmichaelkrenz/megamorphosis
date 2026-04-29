@@ -49,6 +49,12 @@ type Notice = {
 const profileLabel = (profile?: ProfileSummary) =>
   profile?.display_name || (profile?.username ? `@${profile.username}` : "Someone");
 
+const commentActionLabel = (commentCount: number) => {
+  if (commentCount === 0) return "Comment";
+  if (commentCount === 1) return "1 Comment";
+  return `${commentCount} Comments`;
+};
+
 export default function JourneyPage() {
   const params = useParams<{ id: string }>();
   const journeyId = params.id;
@@ -1097,6 +1103,13 @@ export default function JourneyPage() {
                       initialCount={update.respect_count}
                       initiallyRespected={update.respected_by_me}
                     />
+                    <a
+                      className="btn-secondary"
+                      href={`#comments-${update.id}`}
+                      aria-label="Comment on this journey update"
+                    >
+                      {commentActionLabel(update.comment_count)}
+                    </a>
 
                     {isOwner && (
                       <>
@@ -1121,6 +1134,7 @@ export default function JourneyPage() {
                     updateId={update.id}
                     currentUserId={currentUserId}
                     isJourneyOwner={isOwner}
+                    anchorId={`comments-${update.id}`}
                   />
                 </>
               )}

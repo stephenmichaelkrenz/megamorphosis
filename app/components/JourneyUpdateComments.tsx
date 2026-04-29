@@ -30,11 +30,13 @@ export default function JourneyUpdateComments({
   updateId,
   currentUserId,
   isJourneyOwner,
+  anchorId,
 }: {
   journeyId: string;
   updateId: string;
   currentUserId: string | null;
   isJourneyOwner: boolean;
+  anchorId?: string;
 }) {
   const [comments, setComments] = useState<CommentWithProfile[]>([]);
   const [body, setBody] = useState("");
@@ -200,9 +202,12 @@ export default function JourneyUpdateComments({
   };
 
   return (
-    <section className="mt-4 border-t border-[var(--border)] pt-4">
+    <section
+      id={anchorId}
+      className="mt-4 scroll-mt-24 border-t border-[var(--border)] pt-4"
+    >
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-bold">Comments</h3>
+        <h3 className="text-sm font-bold">Comments on this update</h3>
         <span className="muted text-xs">{comments.length}</span>
       </div>
 
