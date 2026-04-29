@@ -1,21 +1,29 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f7f7f4;
+  --foreground: #181816;
+  --surface: #ffffff;
+  --surface-muted: #f0f0eb;
+  --border: #deded6;
+  --muted: #6f6f66;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: Arial, Helvetica, sans-serif;
+  --font-mono: "Courier New", Courier, monospace;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #11110f;
+    --foreground: #f3f3ee;
+    --surface: #191916;
+    --surface-muted: #22221e;
+    --border: #383830;
+    --muted: #aaa99f;
   }
 }
 
@@ -23,4 +31,121 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+button,
+a,
+input,
+textarea {
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    color 160ms ease,
+    opacity 160ms ease;
+}
+
+.page-shell {
+  width: 100%;
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 3rem;
+}
+
+.narrow-shell {
+  width: 100%;
+  max-width: 28rem;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 3rem;
+}
+
+.wide-shell {
+  width: 100%;
+  max-width: 64rem;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 3rem;
+}
+
+.panel {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.link-panel {
+  display: block;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.link-panel:hover {
+  border-color: var(--foreground);
+}
+
+.field {
+  width: 100%;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--foreground);
+  border-radius: 6px;
+  padding: 0.75rem;
+  outline: none;
+}
+
+.field:focus {
+  border-color: var(--foreground);
+}
+
+.btn-primary {
+  border-radius: 6px;
+  background: var(--foreground);
+  color: var(--background);
+  padding: 0.625rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.btn-secondary {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--foreground);
+  padding: 0.625rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.btn-primary:disabled,
+.btn-secondary:disabled {
+  opacity: 0.6;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.section-heading {
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+  font-weight: 800;
+}
+
+.app-header {
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--background) 88%, var(--surface));
+}
+
+.app-footer {
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--background) 92%, var(--surface));
+}
+
+.metric-pill {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
 }
