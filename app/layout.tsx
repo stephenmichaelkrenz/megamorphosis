@@ -27,9 +27,6 @@ export const metadata: Metadata = {
   authors: [{ name: "Megamorphosis" }],
   creator: "Megamorphosis",
   publisher: "Megamorphosis",
-  alternates: {
-    canonical: "/",
-  },
   openGraph: {
     type: "website",
     url: "/",
