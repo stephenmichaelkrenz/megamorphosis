@@ -30,6 +30,12 @@ type CommentSummary = {
   body: string;
 };
 
+type PostCommentSummary = {
+  id: string;
+  post_id: string;
+  body: string;
+};
+
 type CircleCheckinSummary = {
   id: string;
   circle_id: string;
@@ -56,6 +62,7 @@ type NotificationData = {
   posts: Record<string, PostSummary>;
   journeyUpdates: Record<string, JourneyUpdateSummary>;
   comments: Record<string, CommentSummary>;
+  postComments: Record<string, PostCommentSummary>;
   circleCheckins: Record<string, CircleCheckinSummary>;
   circles: Record<string, CircleSummary>;
   directMessages: Record<string, DirectMessageSummary>;
@@ -93,6 +100,9 @@ const fetchNotificationData = async (userId: string): Promise<NotificationData> 
   const commentIds = notifications
     .filter((notification) => notification.target_type === "comment")
     .map((notification) => notification.target_id);
+  const postCommentIds = notifications
+    .filter((notification) => notification.target_type === "post_comment")
+    .map((notification) => notification.target_id);
   const circleCheckinIds = notifications
     .filter((notification) => notification.target_type === "circle_checkin")
     .map((notification) => notification.target_id);
@@ -105,6 +115,7 @@ const fetchNotificationData = async (userId: string): Promise<NotificationData> 
     { data: postData },
     { data: journeyUpdateData },
     { data: commentData },
+    { data: postCommentData },
     { data: circleCheckinData },
     { data: directMessageData },
   ] = await Promise.all([
@@ -128,6 +139,12 @@ const fetchNotificationData = async (userId: string): Promise<NotificationData> 
           .from("journey_update_comments")
           .select("id, journey_id, journey_update_id, body")
           .in("id", commentIds)
+      : { data: [] },
+    postCommentIds.length
+      ? supabase
+          .from("post_comments")
+          .select("id, post_id, body")
+          .in("id", postCommentIds)
       : { data: [] },
     circleCheckinIds.length
       ? supabase
@@ -177,6 +194,12 @@ const fetchNotificationData = async (userId: string): Promise<NotificationData> 
         comment,
       ]),
     ),
+    postComments: Object.fromEntries(
+      ((postCommentData ?? []) as PostCommentSummary[]).map((comment) => [
+        comment.id,
+        comment,
+      ]),
+    ),
     circleCheckins: Object.fromEntries(
       ((circleCheckinData ?? []) as CircleCheckinSummary[]).map((checkin) => [
         checkin.id,
@@ -207,6 +230,9 @@ export default function NotificationsPage() {
     Record<string, JourneyUpdateSummary>
   >({});
   const [comments, setComments] = useState<Record<string, CommentSummary>>({});
+  const [postComments, setPostComments] = useState<
+    Record<string, PostCommentSummary>
+  >({});
   const [circleCheckins, setCircleCheckins] = useState<
     Record<string, CircleCheckinSummary>
   >({});
@@ -230,6 +256,7 @@ export default function NotificationsPage() {
     setPosts(data.posts);
     setJourneyUpdates(data.journeyUpdates);
     setComments(data.comments);
+    setPostComments(data.postComments);
     setCircleCheckins(data.circleCheckins);
     setCircles(data.circles);
     setDirectMessages(data.directMessages);
@@ -313,6 +340,15 @@ export default function NotificationsPage() {
       return {
         href: comment ? `/journey/${comment.journey_id}` : "/dashboard",
         message: `${actorName} commented on your journey update.`,
+        detail: comment ? snippet(comment.body) : "Comment",
+      };
+    }
+
+    if (notification.target_type === "post_comment") {
+      const comment = postComments[notification.target_id];
+      return {
+        href: comment ? `/#post-${comment.post_id}` : "/",
+        message: `${actorName} commented on your feed post.`,
         detail: comment ? snippet(comment.body) : "Comment",
       };
     }

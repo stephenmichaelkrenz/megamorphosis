@@ -1,6 +1,7 @@
 "use client";
 
 import { ReactNode, useState } from "react";
+import PostComments from "@/components/PostComments";
 import RespectButton from "@/components/RespectButton";
 import { supabase } from "@/lib/supabaseClient";
 import { Post } from "@/types";
@@ -65,7 +66,7 @@ export default function EditablePostCard({
   };
 
   return (
-    <article className="panel">
+    <article id={`post-${post.id}`} className="panel scroll-mt-24">
       {header}
 
       {editing ? (
@@ -115,6 +116,12 @@ export default function EditablePostCard({
               </button>
             )}
           </div>
+
+          <PostComments
+            postId={post.id}
+            currentUserId={currentUserId}
+            isPostOwner={post.user_id === currentUserId}
+          />
         </>
       )}
     </article>

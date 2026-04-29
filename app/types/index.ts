@@ -26,6 +26,8 @@ export type JourneyUpdateComment = Tables<"journey_update_comments">;
 
 export type Post = Tables<"posts">;
 
+export type PostComment = Tables<"post_comments">;
+
 export type Profile = Tables<"profiles">;
 
 export type Respect = Tables<"respects">;
@@ -38,6 +40,7 @@ export type Notification = Tables<"notifications"> & {
     | "profile"
     | RespectTargetType
     | "comment"
+    | "post_comment"
     | "circle_checkin"
     | "direct_message";
 };
