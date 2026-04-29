@@ -21,10 +21,14 @@ export default function PostComments({
   postId,
   currentUserId,
   isPostOwner,
+  anchorId,
+  onCommentCountChange,
 }: {
   postId: string;
   currentUserId?: string | null;
   isPostOwner: boolean;
+  anchorId?: string;
+  onCommentCountChange?: (count: number) => void;
 }) {
   const [comments, setComments] = useState<CommentWithProfile[]>([]);
   const [body, setBody] = useState("");
@@ -56,8 +60,9 @@ export default function PostComments({
         profile: profileData?.find((profile) => profile.id === comment.user_id),
       })),
     );
+    onCommentCountChange?.(commentData?.length ?? 0);
     setLoading(false);
-  }, [postId]);
+  }, [onCommentCountChange, postId]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -135,7 +140,10 @@ export default function PostComments({
   };
 
   return (
-    <section className="mt-4 border-t border-[var(--border)] pt-4">
+    <section
+      id={anchorId}
+      className="mt-4 scroll-mt-24 border-t border-[var(--border)] pt-4"
+    >
       <div className="mb-3 flex items-center justify-between">
         <h3 className="text-sm font-bold">Comments</h3>
         <span className="muted text-xs">{comments.length}</span>

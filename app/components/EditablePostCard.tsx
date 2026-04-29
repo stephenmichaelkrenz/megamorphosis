@@ -12,6 +12,13 @@ type EditablePost = Pick<
 > & {
   respect_count: number;
   respected_by_me: boolean;
+  comment_count?: number;
+};
+
+const commentActionLabel = (commentCount: number) => {
+  if (commentCount === 0) return "Comment";
+  if (commentCount === 1) return "1 Comment";
+  return `${commentCount} Comments`;
 };
 
 export default function EditablePostCard({
@@ -29,6 +36,7 @@ export default function EditablePostCard({
 }) {
   const [editing, setEditing] = useState(false);
   const [content, setContent] = useState(post.content ?? "");
+  const [commentCount, setCommentCount] = useState(post.comment_count ?? 0);
   const [saving, setSaving] = useState(false);
 
   const cancelEditing = () => {
@@ -101,6 +109,15 @@ export default function EditablePostCard({
               ? new Date(post.created_at).toLocaleString()
               : "Just now"}
           </time>
+          <div className="muted mt-3 flex flex-wrap gap-3 text-xs">
+            <span>
+              {post.respect_count}{" "}
+              {post.respect_count === 1 ? "supporter" : "supporters"}
+            </span>
+            <span>
+              {commentCount} {commentCount === 1 ? "comment" : "comments"}
+            </span>
+          </div>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <RespectButton
               targetId={post.id}
@@ -109,6 +126,13 @@ export default function EditablePostCard({
               initialCount={post.respect_count}
               initiallyRespected={post.respected_by_me}
             />
+            <a
+              className="btn-secondary border-[var(--foreground)]"
+              href={`#post-comments-${post.id}`}
+              aria-label="Comment on this feed post"
+            >
+              {commentActionLabel(commentCount)}
+            </a>
 
             {canEdit && (
               <button className="btn-secondary" onClick={() => setEditing(true)}>
@@ -121,6 +145,8 @@ export default function EditablePostCard({
             postId={post.id}
             currentUserId={currentUserId}
             isPostOwner={post.user_id === currentUserId}
+            anchorId={`post-comments-${post.id}`}
+            onCommentCountChange={setCommentCount}
           />
         </>
       )}

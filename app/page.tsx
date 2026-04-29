@@ -18,6 +18,7 @@ type FeedPost = {
   };
   respect_count: number;
   respected_by_me: boolean;
+  comment_count: number;
 };
 
 type PublicJourneyPreview = {
@@ -82,24 +83,34 @@ export default function HomePage() {
       ),
     );
 
-    const [{ data: profiles }, { data: respects }] = await Promise.all([
-      postUserIds.length
-        ? supabase
-            .from("profiles")
-            .select("id, username, display_name")
-            .in("id", postUserIds)
-        : Promise.resolve({ data: [] }),
-      postIds.length
-        ? supabase
-            .from("respects")
-            .select("user_id, target_id")
-            .eq("target_type", "post")
-            .in("target_id", postIds)
-        : Promise.resolve({ data: [] }),
-    ]);
+    const [{ data: profiles }, { data: respects }, { data: comments }] =
+      await Promise.all([
+        postUserIds.length
+          ? supabase
+              .from("profiles")
+              .select("id, username, display_name")
+              .in("id", postUserIds)
+          : Promise.resolve({ data: [] }),
+        postIds.length
+          ? supabase
+              .from("respects")
+              .select("user_id, target_id")
+              .eq("target_type", "post")
+              .in("target_id", postIds)
+          : Promise.resolve({ data: [] }),
+        postIds.length
+          ? supabase
+              .from("post_comments")
+              .select("post_id")
+              .in("post_id", postIds)
+              .is("deleted_at", null)
+              .is("hidden_at", null)
+          : Promise.resolve({ data: [] }),
+      ]);
 
     const respectCounts = new Map<string, number>();
     const respectedByMe = new Set<string>();
+    const commentCounts = new Map<string, number>();
 
     respects?.forEach((respect) => {
       respectCounts.set(
@@ -112,6 +123,13 @@ export default function HomePage() {
       }
     });
 
+    comments?.forEach((comment) => {
+      commentCounts.set(
+        comment.post_id,
+        (commentCounts.get(comment.post_id) ?? 0) + 1,
+      );
+    });
+
     return {
       posts:
         postsData?.map((post) => ({
@@ -119,6 +137,7 @@ export default function HomePage() {
           profile: profiles?.find((profile) => profile.id === post.user_id),
           respect_count: respectCounts.get(post.id) ?? 0,
           respected_by_me: respectedByMe.has(post.id),
+          comment_count: commentCounts.get(post.id) ?? 0,
         })) ?? [],
       userId: user.id,
       username: currentProfile?.username ?? null,
