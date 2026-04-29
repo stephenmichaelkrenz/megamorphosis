@@ -20,8 +20,23 @@ type FeedPost = {
   respected_by_me: boolean;
 };
 
+type PublicJourneyPreview = {
+  id: string;
+  title: string;
+  category: string | null;
+  goal_text: string | null;
+  created_at: string | null;
+  profile?: {
+    username: string | null;
+    display_name: string | null;
+  };
+  update_count: number;
+  respect_count: number;
+};
+
 export default function HomePage() {
   const [posts, setPosts] = useState<FeedPost[]>([]);
+  const [publicJourneys, setPublicJourneys] = useState<PublicJourneyPreview[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [currentUsername, setCurrentUsername] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -110,10 +125,102 @@ export default function HomePage() {
     };
   };
 
+  const fetchPublicJourneys = async () => {
+    const { data: journeysData } = await supabase
+      .from("journeys")
+      .select("id, user_id, title, category, goal_text, created_at")
+      .eq("visibility", "public")
+      .is("archived_at", null)
+      .order("created_at", { ascending: false })
+      .limit(6);
+
+    const journeyIds = journeysData?.map((journey) => journey.id) ?? [];
+    const journeyUserIds = Array.from(
+      new Set(
+        journeysData
+          ?.map((journey) => journey.user_id)
+          .filter((userId): userId is string => Boolean(userId)) ?? [],
+      ),
+    );
+
+    const [{ data: profiles }, { data: updates }] = await Promise.all([
+      journeyUserIds.length
+        ? supabase
+            .from("profiles")
+            .select("id, username, display_name")
+            .in("id", journeyUserIds)
+        : Promise.resolve({ data: [] }),
+      journeyIds.length
+        ? supabase
+            .from("journey_updates")
+            .select("id, journey_id")
+            .in("journey_id", journeyIds)
+        : Promise.resolve({ data: [] }),
+    ]);
+
+    const updateIds = updates?.map((update) => update.id) ?? [];
+    const { data: respects } = updateIds.length
+      ? await supabase
+          .from("respects")
+          .select("target_id")
+          .eq("target_type", "journey_update")
+          .in("target_id", updateIds)
+      : { data: [] };
+
+    const updateJourneyIds = new Map(
+      updates?.map((update) => [update.id, update.journey_id]) ?? [],
+    );
+
+    const respectCounts = new Map<string, number>();
+    respects?.forEach((respect) => {
+      const journeyId = updateJourneyIds.get(respect.target_id);
+      if (!journeyId) return;
+      respectCounts.set(journeyId, (respectCounts.get(journeyId) ?? 0) + 1);
+    });
+
+    const updateCounts = new Map<string, number>();
+    updates?.forEach((update) => {
+      if (!update.journey_id) return;
+      updateCounts.set(
+        update.journey_id,
+        (updateCounts.get(update.journey_id) ?? 0) + 1,
+      );
+    });
+
+    return (
+      journeysData
+        ?.map((journey) => ({
+          id: journey.id,
+          title: journey.title,
+          category: journey.category,
+          goal_text: journey.goal_text,
+          created_at: journey.created_at,
+          profile: profiles?.find((profile) => profile.id === journey.user_id),
+          update_count: updateCounts.get(journey.id) ?? 0,
+          respect_count: respectCounts.get(journey.id) ?? 0,
+        }))
+        .sort((a, b) => {
+          if (b.update_count !== a.update_count) {
+            return b.update_count - a.update_count;
+          }
+
+          return (
+            new Date(b.created_at ?? 0).getTime() -
+            new Date(a.created_at ?? 0).getTime()
+          );
+        })
+        .slice(0, 3) ?? []
+    );
+  };
+
   useEffect(() => {
     const loadInitialFeed = async () => {
-      const nextFeed = await fetchFeed();
+      const [nextFeed, nextPublicJourneys] = await Promise.all([
+        fetchFeed(),
+        fetchPublicJourneys(),
+      ]);
       setPosts(nextFeed.posts);
+      setPublicJourneys(nextPublicJourneys);
       setCurrentUserId(nextFeed.userId);
       setCurrentUsername(nextFeed.username);
       setLoading(false);
@@ -169,7 +276,9 @@ export default function HomePage() {
   return (
     <main className="page-shell">
       <section className="mb-10 text-center">
-        <h1 className="text-5xl font-bold tracking-normal">MEGAMORPHOSIS</h1>
+        <h1 className="text-3xl font-bold tracking-normal sm:text-5xl">
+          MEGAMORPHOSIS
+        </h1>
         <p className="muted mt-4 text-lg">Track your transformation.</p>
 
         {!loading && (
@@ -209,7 +318,7 @@ export default function HomePage() {
 
       {loading ? (
         <section className="panel mb-8">
-          <p className="muted text-sm">Preparing your posting tools...</p>
+          <p className="muted text-sm">Finding public progress...</p>
         </section>
       ) : currentUserId ? (
         <section className="panel mb-8">
@@ -241,47 +350,101 @@ export default function HomePage() {
         </section>
       )}
 
-      <section>
-        <h2 className="mb-4 text-2xl font-bold">Your Feed</h2>
+      {currentUserId ? (
+        <section>
+          <h2 className="mb-4 text-2xl font-bold">Your Feed</h2>
 
-        {loading && <p>Loading feed...</p>}
+          {loading && <p>Loading feed...</p>}
 
-        {!loading && posts.length === 0 && (
-          <div className="panel">
-            <p className="font-semibold">No posts yet.</p>
-            <p className="muted mt-2 text-sm">
-              {currentUserId
-                ? "Follow people, join Circles, or create your first post."
-                : "Create an account to make this feed your transformation home."}
-            </p>
+          {!loading && posts.length === 0 && (
+            <div className="panel">
+              <p className="font-semibold">No posts yet.</p>
+              <p className="muted mt-2 text-sm">
+                Follow people, join Circles, or create your first post.
+              </p>
+            </div>
+          )}
+
+          <div className="space-y-4">
+            {posts.map((post) => {
+              const username = post.profile?.username;
+
+              return (
+                <EditablePostCard
+                  key={post.id}
+                  post={post}
+                  canEdit={post.user_id === currentUserId}
+                  currentUserId={currentUserId}
+                  onSaved={updateSavedPost}
+                  header={
+                    <p className="mb-2 font-semibold">
+                      {username ? (
+                        <Link href={`/user/${username}`}>@{username}</Link>
+                      ) : (
+                        "@unknown"
+                      )}
+                    </p>
+                  }
+                />
+              );
+            })}
           </div>
-        )}
+        </section>
+      ) : (
+        <section>
+          <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 className="text-2xl font-bold">Recent Journeys</h2>
+              <p className="muted mt-1 text-sm">
+                See what people are already building in public.
+              </p>
+            </div>
+            <Link href="/discover" className="font-semibold">
+              Discover more
+            </Link>
+          </div>
 
-        <div className="space-y-4">
-          {posts.map((post) => {
-            const username = post.profile?.username;
+          {loading ? (
+            <p>Loading journeys...</p>
+          ) : publicJourneys.length === 0 ? (
+            <div className="panel">
+              <p className="font-semibold">The first journeys are coming online.</p>
+              <p className="muted mt-2 text-sm">
+                Start yours and help set the tone for the community.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {publicJourneys.map((journey) => {
+                const username = journey.profile?.username;
+                const displayName =
+                  journey.profile?.display_name || username || "Someone";
 
-            return (
-              <EditablePostCard
-                key={post.id}
-                post={post}
-                canEdit={post.user_id === currentUserId}
-                currentUserId={currentUserId}
-                onSaved={updateSavedPost}
-                header={
-                  <p className="mb-2 font-semibold">
-                    {username ? (
-                      <Link href={`/user/${username}`}>@{username}</Link>
-                    ) : (
-                      "@unknown"
-                    )}
-                  </p>
-                }
-              />
-            );
-          })}
-        </div>
-      </section>
+                return (
+                  <article key={journey.id} className="link-panel">
+                    <Link href={`/journey/${journey.id}`} className="block">
+                      <div className="mb-3 flex flex-wrap items-center gap-2">
+                        <span className="metric-pill">
+                          {journey.update_count} updates
+                        </span>
+                        <span className="metric-pill">
+                          {journey.respect_count} respect
+                        </span>
+                      </div>
+                      <h3 className="text-lg font-bold">{journey.title}</h3>
+                      <p className="muted mt-1 text-sm">
+                        {journey.category || "Transformation"} by{" "}
+                        {username ? `@${username}` : displayName}
+                      </p>
+                      <p className="mt-3 text-sm leading-6">{journey.goal_text}</p>
+                    </Link>
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      )}
     </main>
   );
 }

@@ -241,7 +241,7 @@ export default function JourneyUpdateComments({
                       {comment.hidden_at ? "Unhide" : "Hide"}
                     </button>
                   )}
-                  {!isOwnComment && (
+                  {currentUserId && !isOwnComment && (
                     <>
                       <button
                         className="font-semibold"
@@ -265,19 +265,33 @@ export default function JourneyUpdateComments({
       )}
 
       <div className="mt-4">
-        <textarea
-          className="field h-20 resize-none"
-          placeholder="Add support, encouragement, or a question..."
-          value={body}
-          onChange={(event) => setBody(event.target.value)}
-        />
-        <button
-          className="btn-secondary mt-2"
-          disabled={posting}
-          onClick={addComment}
-        >
-          {posting ? "Commenting..." : "Comment"}
-        </button>
+        {currentUserId ? (
+          <>
+            <textarea
+              className="field h-20 resize-none"
+              placeholder="Add support, encouragement, or a question..."
+              value={body}
+              onChange={(event) => setBody(event.target.value)}
+            />
+            <button
+              className="btn-secondary mt-2"
+              disabled={posting}
+              onClick={addComment}
+            >
+              {posting ? "Commenting..." : "Comment"}
+            </button>
+          </>
+        ) : (
+          <div className="panel">
+            <p className="text-sm font-semibold">Join the conversation.</p>
+            <p className="muted mt-1 text-sm">
+              Log in to add encouragement, questions, or proof of support.
+            </p>
+            <Link href="/auth/login" className="btn-secondary mt-3 inline-block">
+              Log In to Comment
+            </Link>
+          </div>
+        )}
       </div>
     </section>
   );
