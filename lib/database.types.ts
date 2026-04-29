@@ -721,6 +721,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_platform_traction: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
       is_platform_moderator: {
         Args: Record<PropertyKey, never>
         Returns: boolean

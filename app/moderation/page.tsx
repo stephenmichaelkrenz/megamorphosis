@@ -33,11 +33,70 @@ type ModerationComment = JourneyUpdateComment & {
   reports: CommentReport[];
 };
 
-type ModerationTab = "reports" | "hidden" | "blocks";
+type TractionMetrics = {
+  generated_at: string;
+  acquisition: {
+    total_profiles: number;
+    onboarded_profiles: number;
+    new_profiles_7d: number;
+    new_profiles_30d: number;
+  };
+  creation: {
+    total_journeys: number;
+    public_journeys: number;
+    archived_journeys: number;
+    new_journeys_7d: number;
+    new_journeys_30d: number;
+    total_updates: number;
+    updates_7d: number;
+    updates_30d: number;
+    total_posts: number;
+    total_milestones: number;
+    completed_milestones: number;
+  };
+  engagement: {
+    total_comments: number;
+    comments_7d: number;
+    total_respects: number;
+    total_follows: number;
+    total_messages: number;
+    messages_7d: number;
+  };
+  community: {
+    total_circles: number;
+    total_circle_members: number;
+    total_checkins: number;
+    checkins_7d: number;
+    checkins_30d: number;
+  };
+  retention: {
+    active_users_7d: number;
+    active_users_30d: number;
+    users_with_journeys: number;
+    users_with_updates: number;
+  };
+  moderation: {
+    total_reports: number;
+    hidden_comments: number;
+    total_blocks: number;
+  };
+};
+
+type ModerationTab = "traction" | "reports" | "hidden" | "blocks";
 
 const profileName = (profile?: ProfileSummary) => {
   if (!profile) return "Someone";
   return profile.display_name || (profile.username ? `@${profile.username}` : "Someone");
+};
+
+const numberFormatter = new Intl.NumberFormat();
+
+const formatNumber = (value: number) => numberFormatter.format(value);
+
+const formatRate = (value: number, total: number) => {
+  if (total === 0) return "0%";
+
+  return `${Math.round((value / total) * 100)}%`;
 };
 
 export default function ModerationPage() {
@@ -48,7 +107,9 @@ export default function ModerationPage() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [workingId, setWorkingId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<ModerationTab>("reports");
+  const [activeTab, setActiveTab] = useState<ModerationTab>("traction");
+  const [traction, setTraction] = useState<TractionMetrics | null>(null);
+  const [tractionError, setTractionError] = useState<string | null>(null);
 
   const loadModeration = useCallback(async () => {
     const {
@@ -71,8 +132,14 @@ export default function ModerationPage() {
       return;
     }
 
-    const [{ data: reportData }, { data: hiddenCommentData }, { data: blockData }] =
+    const [
+      { data: tractionData, error: tractionLoadError },
+      { data: reportData },
+      { data: hiddenCommentData },
+      { data: blockData },
+    ] =
       await Promise.all([
+        supabase.rpc("get_platform_traction"),
         supabase
           .from("comment_reports")
           .select("id, comment_id, reporter_id, reason, created_at")
@@ -88,6 +155,14 @@ export default function ModerationPage() {
           .eq("blocker_id", user.id)
           .order("created_at", { ascending: false }),
       ]);
+
+    if (tractionLoadError) {
+      setTraction(null);
+      setTractionError(tractionLoadError.message);
+    } else {
+      setTraction(tractionData as TractionMetrics);
+      setTractionError(null);
+    }
 
     const reportRows = (reportData ?? []) as CommentReport[];
     const reportCommentIds = Array.from(
@@ -265,6 +340,20 @@ export default function ModerationPage() {
   const isBlocked = (userId: string) =>
     blocks.some((block) => block.blocked_id === userId);
 
+  const metricCard = (
+    label: string,
+    value: number | string,
+    detail?: string,
+  ) => (
+    <div className="panel">
+      <p className="muted text-xs font-semibold uppercase">{label}</p>
+      <p className="mt-1 text-2xl font-bold">
+        {typeof value === "number" ? formatNumber(value) : value}
+      </p>
+      {detail && <p className="muted mt-2 text-sm">{detail}</p>}
+    </div>
+  );
+
   const renderComment = (comment: ModerationComment) => (
     <article key={comment.id} className="panel">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -344,6 +433,16 @@ export default function ModerationPage() {
 
       <section className="mb-8 grid gap-3 md:grid-cols-3">
         <button
+          className={`panel text-left ${activeTab === "traction" ? "border-foreground" : ""}`}
+          onClick={() => setActiveTab("traction")}
+        >
+          <p className="muted text-xs font-semibold uppercase">Traction</p>
+          <p className="mt-1 text-2xl font-bold">
+            {traction ? formatNumber(traction.retention.active_users_30d) : "-"}
+          </p>
+          <p className="muted mt-1 text-xs">30-day active users</p>
+        </button>
+        <button
           className={`panel text-left ${activeTab === "reports" ? "border-foreground" : ""}`}
           onClick={() => setActiveTab("reports")}
         >
@@ -365,6 +464,160 @@ export default function ModerationPage() {
           <p className="mt-1 text-2xl font-bold">{blocks.length}</p>
         </button>
       </section>
+
+      {activeTab === "traction" && (
+        <section className="space-y-8">
+          <div>
+            <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <h2 className="section-heading">Traction Dashboard</h2>
+                <p className="muted mt-1 text-sm">
+                  Private platform metrics for investor conversations and
+                  product focus.
+                </p>
+              </div>
+              {traction?.generated_at && (
+                <p className="muted text-xs">
+                  Updated {new Date(traction.generated_at).toLocaleString()}
+                </p>
+              )}
+            </div>
+
+            {tractionError && (
+              <p className="notice notice-error">
+                Could not load traction metrics: {tractionError}
+              </p>
+            )}
+
+            {!traction && !tractionError && (
+              <p className="muted panel">No traction metrics available yet.</p>
+            )}
+          </div>
+
+          {traction && (
+            <>
+              <div>
+                <h3 className="mb-3 font-semibold">Acquisition</h3>
+                <div className="grid gap-3 md:grid-cols-4">
+                  {metricCard("Profiles", traction.acquisition.total_profiles)}
+                  {metricCard(
+                    "Onboarded",
+                    traction.acquisition.onboarded_profiles,
+                    `${formatRate(
+                      traction.acquisition.onboarded_profiles,
+                      traction.acquisition.total_profiles,
+                    )} onboarding rate`,
+                  )}
+                  {metricCard(
+                    "New Users 7D",
+                    traction.acquisition.new_profiles_7d,
+                  )}
+                  {metricCard(
+                    "New Users 30D",
+                    traction.acquisition.new_profiles_30d,
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <h3 className="mb-3 font-semibold">Creation</h3>
+                <div className="grid gap-3 md:grid-cols-4">
+                  {metricCard("Journeys", traction.creation.total_journeys)}
+                  {metricCard(
+                    "Public Journeys",
+                    traction.creation.public_journeys,
+                    `${formatRate(
+                      traction.creation.public_journeys,
+                      traction.creation.total_journeys,
+                    )} public`,
+                  )}
+                  {metricCard("Updates", traction.creation.total_updates)}
+                  {metricCard("Updates 7D", traction.creation.updates_7d)}
+                  {metricCard("Updates 30D", traction.creation.updates_30d)}
+                  {metricCard("Posts", traction.creation.total_posts)}
+                  {metricCard("Milestones", traction.creation.total_milestones)}
+                  {metricCard(
+                    "Completed Milestones",
+                    traction.creation.completed_milestones,
+                    `${formatRate(
+                      traction.creation.completed_milestones,
+                      traction.creation.total_milestones,
+                    )} complete`,
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <h3 className="mb-3 font-semibold">Engagement</h3>
+                <div className="grid gap-3 md:grid-cols-4">
+                  {metricCard("Comments", traction.engagement.total_comments)}
+                  {metricCard("Comments 7D", traction.engagement.comments_7d)}
+                  {metricCard("Respect", traction.engagement.total_respects)}
+                  {metricCard("Follows", traction.engagement.total_follows)}
+                  {metricCard("Messages", traction.engagement.total_messages)}
+                  {metricCard("Messages 7D", traction.engagement.messages_7d)}
+                </div>
+              </div>
+
+              <div>
+                <h3 className="mb-3 font-semibold">Community</h3>
+                <div className="grid gap-3 md:grid-cols-4">
+                  {metricCard("Circles", traction.community.total_circles)}
+                  {metricCard(
+                    "Circle Members",
+                    traction.community.total_circle_members,
+                  )}
+                  {metricCard("Check-ins", traction.community.total_checkins)}
+                  {metricCard("Check-ins 7D", traction.community.checkins_7d)}
+                  {metricCard("Check-ins 30D", traction.community.checkins_30d)}
+                </div>
+              </div>
+
+              <div>
+                <h3 className="mb-3 font-semibold">Retention Proxy</h3>
+                <div className="grid gap-3 md:grid-cols-4">
+                  {metricCard(
+                    "Active Users 7D",
+                    traction.retention.active_users_7d,
+                  )}
+                  {metricCard(
+                    "Active Users 30D",
+                    traction.retention.active_users_30d,
+                  )}
+                  {metricCard(
+                    "Users With Journeys",
+                    traction.retention.users_with_journeys,
+                    `${formatRate(
+                      traction.retention.users_with_journeys,
+                      traction.acquisition.onboarded_profiles,
+                    )} of onboarded`,
+                  )}
+                  {metricCard(
+                    "Users With Updates",
+                    traction.retention.users_with_updates,
+                    `${formatRate(
+                      traction.retention.users_with_updates,
+                      traction.acquisition.onboarded_profiles,
+                    )} of onboarded`,
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <h3 className="mb-3 font-semibold">Trust And Safety</h3>
+                <div className="grid gap-3 md:grid-cols-3">
+                  {metricCard("Reports", traction.moderation.total_reports)}
+                  {metricCard(
+                    "Hidden Comments",
+                    traction.moderation.hidden_comments,
+                  )}
+                  {metricCard("Blocks", traction.moderation.total_blocks)}
+                </div>
+              </div>
+            </>
+          )}
+        </section>
+      )}
 
       {activeTab === "reports" && (
         <section>
