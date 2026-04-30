@@ -29,7 +29,7 @@ export default function DailyCheckInComposer({
   };
 
   return (
-    <section className="panel mb-8">
+    <section id="daily-check-in" className="panel mb-8 scroll-mt-24">
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold">Daily Check-In</h2>

@@ -4,7 +4,14 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import DailyCheckInComposer from "@/components/DailyCheckInComposer";
 import EditablePostCard from "@/components/EditablePostCard";
+import TodayModule from "@/components/TodayModule";
+import { calculateDailyStreak } from "@/lib/gamification";
 import { supabase } from "@/lib/supabaseClient";
+import {
+  emptyTodaySummary,
+  getTodayStartIso,
+} from "@/lib/today";
+import type { TodaySummary } from "@/lib/today";
 import { Post } from "@/types";
 
 type FeedPost = {
@@ -44,6 +51,8 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [newPost, setNewPost] = useState("");
   const [posting, setPosting] = useState(false);
+  const [todaySummary, setTodaySummary] =
+    useState<TodaySummary>(emptyTodaySummary);
 
   const fetchFeed = async () => {
     const {
@@ -233,16 +242,117 @@ export default function HomePage() {
     );
   };
 
+  const fetchTodaySummary = async (): Promise<TodaySummary> => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) return emptyTodaySummary;
+
+    const todayStartIso = getTodayStartIso();
+
+    const [
+      { count: todayPostCount },
+      { data: activeJourneys },
+      { count: joinedCircleCount },
+      { data: ownCheckins },
+      { count: unreadNotificationCount },
+      { count: unreadMessageCount },
+    ] = await Promise.all([
+      supabase
+        .from("posts")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .gte("created_at", todayStartIso),
+      supabase
+        .from("journeys")
+        .select("id, title")
+        .eq("user_id", user.id)
+        .eq("status", "active")
+        .is("archived_at", null)
+        .order("created_at", { ascending: true }),
+      supabase
+        .from("circle_members")
+        .select("circle_id", { count: "exact", head: true })
+        .eq("user_id", user.id),
+      supabase
+        .from("circle_checkins")
+        .select("created_at")
+        .eq("user_id", user.id),
+      supabase
+        .from("notifications")
+        .select("id", { count: "exact", head: true })
+        .eq("recipient_id", user.id)
+        .is("read_at", null),
+      supabase
+        .from("direct_messages")
+        .select("id", { count: "exact", head: true })
+        .eq("recipient_id", user.id)
+        .is("read_at", null),
+    ]);
+
+    const activeJourneyIds = activeJourneys?.map((journey) => journey.id) ?? [];
+    const { data: journeyUpdates } = activeJourneyIds.length
+      ? await supabase
+          .from("journey_updates")
+          .select("journey_id, created_at")
+          .in("journey_id", activeJourneyIds)
+      : { data: [] };
+
+    const latestUpdateByJourneyId = new Map<string, string | null>();
+    journeyUpdates?.forEach((update) => {
+      if (!update.journey_id) return;
+
+      const currentLatest = latestUpdateByJourneyId.get(update.journey_id);
+      if (
+        !currentLatest ||
+        new Date(update.created_at ?? 0).getTime() >
+          new Date(currentLatest).getTime()
+      ) {
+        latestUpdateByJourneyId.set(update.journey_id, update.created_at);
+      }
+    });
+
+    const journeyPrompt =
+      activeJourneys
+        ?.map((journey) => ({
+          id: journey.id,
+          title: journey.title,
+          lastUpdatedAt: latestUpdateByJourneyId.get(journey.id) ?? null,
+        }))
+        .sort((a, b) => {
+          if (!a.lastUpdatedAt && b.lastUpdatedAt) return -1;
+          if (a.lastUpdatedAt && !b.lastUpdatedAt) return 1;
+          return (
+            new Date(a.lastUpdatedAt ?? 0).getTime() -
+            new Date(b.lastUpdatedAt ?? 0).getTime()
+          );
+        })[0] ?? null;
+
+    return {
+      hasCheckedInToday: (todayPostCount ?? 0) > 0,
+      journeyPrompt,
+      joinedCircleCount: joinedCircleCount ?? 0,
+      circleCheckinStreak: calculateDailyStreak(
+        ownCheckins?.map((checkin) => checkin.created_at) ?? [],
+      ),
+      unreadNotificationCount: unreadNotificationCount ?? 0,
+      unreadMessageCount: unreadMessageCount ?? 0,
+    };
+  };
+
   useEffect(() => {
     const loadInitialFeed = async () => {
-      const [nextFeed, nextPublicJourneys] = await Promise.all([
+      const [nextFeed, nextPublicJourneys, nextTodaySummary] = await Promise.all([
         fetchFeed(),
         fetchPublicJourneys(),
+        fetchTodaySummary(),
       ]);
       setPosts(nextFeed.posts);
       setPublicJourneys(nextPublicJourneys);
       setCurrentUserId(nextFeed.userId);
       setCurrentUsername(nextFeed.username);
+      setTodaySummary(nextTodaySummary);
       setLoading(false);
     };
 
@@ -278,6 +388,7 @@ export default function HomePage() {
     }
 
     setNewPost("");
+    setTodaySummary((summary) => ({ ...summary, hasCheckedInToday: true }));
     setLoading(true);
     const nextFeed = await fetchFeed();
     setPosts(nextFeed.posts);
@@ -346,12 +457,15 @@ export default function HomePage() {
           <p className="muted text-sm">Finding public progress...</p>
         </section>
       ) : currentUserId ? (
-        <DailyCheckInComposer
-          value={newPost}
-          posting={posting}
-          onChange={setNewPost}
-          onSubmit={createPost}
-        />
+        <>
+          <TodayModule summary={todaySummary} />
+          <DailyCheckInComposer
+            value={newPost}
+            posting={posting}
+            onChange={setNewPost}
+            onSubmit={createPost}
+          />
+        </>
       ) : (
         <section className="panel mb-8">
           <h2 className="mb-2 text-lg font-semibold">Ready to document progress?</h2>

@@ -8,8 +8,14 @@ import JourneyStatusBadge from "@/components/JourneyStatusBadge";
 import JourneyVisibilityBadge from "@/components/JourneyVisibilityBadge";
 import MilestoneProgressBadge from "@/components/MilestoneProgressBadge";
 import ProBadge from "@/components/ProBadge";
+import TodayModule from "@/components/TodayModule";
 import { achievementLabels, calculateDailyStreak } from "@/lib/gamification";
 import { supabase } from "@/lib/supabaseClient";
+import {
+  emptyTodaySummary,
+  getTodayStartIso,
+} from "@/lib/today";
+import type { TodaySummary } from "@/lib/today";
 import {
   Circle,
   CircleCheckin,
@@ -74,6 +80,8 @@ export default function Dashboard() {
     journeyUpdates: 0,
     circleCheckins: 0,
   });
+  const [todaySummary, setTodaySummary] =
+    useState<TodaySummary>(emptyTodaySummary);
   const [newPost, setNewPost] = useState("");
   const [posting, setPosting] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -123,7 +131,7 @@ export default function Dashboard() {
       const joinedCircleIds =
         membershipsData?.map((membership) => membership.circle_id) ?? [];
       const activeJourneyRows = journeyRows.filter(
-        (journey) => !journey.archived_at,
+        (journey) => !journey.archived_at && journey.status === "active",
       );
       const activeJourneyIds = activeJourneyRows.map((journey) => journey.id);
       const journeyIds = journeyRows.map((journey) => journey.id);
@@ -138,6 +146,9 @@ export default function Dashboard() {
         { data: ownCheckinRows },
         { data: allUpdateRows },
         { data: allPostRows },
+        { count: todayPostCount },
+        { count: unreadNotificationCount },
+        { count: unreadMessageCount },
       ] = await Promise.all([
         journeyIds.length
           ? supabase
@@ -187,10 +198,25 @@ export default function Dashboard() {
         activeJourneyIds.length
           ? supabase
               .from("journey_updates")
-              .select("created_at")
+              .select("journey_id, created_at")
               .in("journey_id", activeJourneyIds)
           : { data: [] },
         supabase.from("posts").select("created_at").eq("user_id", user.id),
+        supabase
+          .from("posts")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", user.id)
+          .gte("created_at", getTodayStartIso()),
+        supabase
+          .from("notifications")
+          .select("id", { count: "exact", head: true })
+          .eq("recipient_id", user.id)
+          .is("read_at", null),
+        supabase
+          .from("direct_messages")
+          .select("id", { count: "exact", head: true })
+          .eq("recipient_id", user.id)
+          .is("read_at", null),
       ]);
 
       const checkinUserIds = Array.from(
@@ -205,27 +231,27 @@ export default function Dashboard() {
         { data: circleUpdateRows },
         { data: checkinProfileRows },
       ] = await Promise.all([
-          circleJourneyIds.length
-            ? supabase
-                .from("journeys")
-                .select("id")
-                .in("id", circleJourneyIds)
-                .eq("visibility", "public")
-                .is("archived_at", null)
-            : { data: [] },
-          circleJourneyIds.length
-            ? supabase
-                .from("journey_updates")
-                .select("journey_id")
-                .in("journey_id", circleJourneyIds)
-            : { data: [] },
-          checkinUserIds.length
-            ? supabase
-                .from("profiles")
-                .select("id, username, display_name")
-                .in("id", checkinUserIds)
-            : { data: [] },
-        ]);
+        circleJourneyIds.length
+          ? supabase
+              .from("journeys")
+              .select("id")
+              .in("id", circleJourneyIds)
+              .eq("visibility", "public")
+              .is("archived_at", null)
+          : { data: [] },
+        circleJourneyIds.length
+          ? supabase
+              .from("journey_updates")
+              .select("journey_id")
+              .in("journey_id", circleJourneyIds)
+          : { data: [] },
+        checkinUserIds.length
+          ? supabase
+              .from("profiles")
+              .select("id, username, display_name")
+              .in("id", checkinUserIds)
+          : { data: [] },
+      ]);
 
       const postIds = postsData?.map((post) => post.id) ?? [];
       const { data: respects } = postIds.length
@@ -326,9 +352,47 @@ export default function Dashboard() {
       const nextCircleCheckinStreak = calculateDailyStreak(
         ownCheckinRows?.map((checkin) => checkin.created_at) ?? [],
       );
+      const latestUpdateByJourneyId = new Map<string, string | null>();
+
+      allUpdateRows?.forEach((update) => {
+        if (!update.journey_id) return;
+
+        const currentLatest = latestUpdateByJourneyId.get(update.journey_id);
+        if (
+          !currentLatest ||
+          new Date(update.created_at ?? 0).getTime() >
+            new Date(currentLatest).getTime()
+        ) {
+          latestUpdateByJourneyId.set(update.journey_id, update.created_at);
+        }
+      });
+
+      const journeyPrompt =
+        activeJourneyRows
+          .map((journey) => ({
+            id: journey.id,
+            title: journey.title,
+            lastUpdatedAt: latestUpdateByJourneyId.get(journey.id) ?? null,
+          }))
+          .sort((a, b) => {
+            if (!a.lastUpdatedAt && b.lastUpdatedAt) return -1;
+            if (a.lastUpdatedAt && !b.lastUpdatedAt) return 1;
+            return (
+              new Date(a.lastUpdatedAt ?? 0).getTime() -
+              new Date(b.lastUpdatedAt ?? 0).getTime()
+            );
+          })[0] ?? null;
 
       setJourneyStreak(nextJourneyStreak);
       setCircleCheckinStreak(nextCircleCheckinStreak);
+      setTodaySummary({
+        hasCheckedInToday: (todayPostCount ?? 0) > 0,
+        journeyPrompt,
+        joinedCircleCount: joinedCircleIds.length,
+        circleCheckinStreak: nextCircleCheckinStreak,
+        unreadNotificationCount: unreadNotificationCount ?? 0,
+        unreadMessageCount: unreadMessageCount ?? 0,
+      });
       setAchievementBadges(
         achievementLabels({
           journeyStreak: nextJourneyStreak,
@@ -394,6 +458,8 @@ export default function Dashboard() {
       { ...data, respect_count: 0, respected_by_me: false },
       ...currentPosts,
     ]);
+    setTodaySummary((summary) => ({ ...summary, hasCheckedInToday: true }));
+    setWeeklyRecap((recap) => ({ ...recap, posts: recap.posts + 1 }));
     setNewPost("");
     setPosting(false);
   };
@@ -461,6 +527,8 @@ export default function Dashboard() {
           </Link>
         </div>
       </section>
+
+      <TodayModule summary={todaySummary} />
 
       <DailyCheckInComposer
         value={newPost}
