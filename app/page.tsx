@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import DailyCheckInComposer from "@/components/DailyCheckInComposer";
 import EditablePostCard from "@/components/EditablePostCard";
 import { supabase } from "@/lib/supabaseClient";
 import { Post } from "@/types";
@@ -343,22 +344,12 @@ export default function HomePage() {
           <p className="muted text-sm">Finding public progress...</p>
         </section>
       ) : currentUserId ? (
-        <section className="panel mb-8">
-          <h2 className="mb-3 text-lg font-semibold">Create a Post</h2>
-          <textarea
-            value={newPost}
-            onChange={(event) => setNewPost(event.target.value)}
-            placeholder="What's your transformation today?"
-            className="field h-24 resize-none"
-          />
-          <button
-            onClick={createPost}
-            disabled={posting}
-            className="btn-primary mt-3"
-          >
-            {posting ? "Posting..." : "Post"}
-          </button>
-        </section>
+        <DailyCheckInComposer
+          value={newPost}
+          posting={posting}
+          onChange={setNewPost}
+          onSubmit={createPost}
+        />
       ) : (
         <section className="panel mb-8">
           <h2 className="mb-2 text-lg font-semibold">Ready to document progress?</h2>

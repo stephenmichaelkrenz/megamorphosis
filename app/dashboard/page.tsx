@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import DailyCheckInComposer from "@/components/DailyCheckInComposer";
 import EditablePostCard from "@/components/EditablePostCard";
 import JourneyStatusBadge from "@/components/JourneyStatusBadge";
 import JourneyVisibilityBadge from "@/components/JourneyVisibilityBadge";
@@ -60,6 +61,8 @@ export default function Dashboard() {
   const [journeyStreak, setJourneyStreak] = useState(0);
   const [circleCheckinStreak, setCircleCheckinStreak] = useState(0);
   const [achievementBadges, setAchievementBadges] = useState<string[]>([]);
+  const [newPost, setNewPost] = useState("");
+  const [posting, setPosting] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -335,6 +338,36 @@ export default function Dashboard() {
     );
   };
 
+  const createPost = async () => {
+    const trimmedPost = newPost.trim();
+
+    if (!trimmedPost || !currentUserId) return;
+
+    setPosting(true);
+
+    const { data, error } = await supabase
+      .from("posts")
+      .insert({
+        user_id: currentUserId,
+        content: trimmedPost,
+      })
+      .select("id, user_id, content, created_at, updated_at")
+      .single();
+
+    if (error) {
+      alert(error.message);
+      setPosting(false);
+      return;
+    }
+
+    setPosts((currentPosts) => [
+      { ...data, respect_count: 0, respected_by_me: false },
+      ...currentPosts,
+    ]);
+    setNewPost("");
+    setPosting(false);
+  };
+
   if (loading) {
     return <main className="wide-shell">Loading dashboard...</main>;
   }
@@ -395,6 +428,13 @@ export default function Dashboard() {
           </Link>
         </div>
       </section>
+
+      <DailyCheckInComposer
+        value={newPost}
+        posting={posting}
+        onChange={setNewPost}
+        onSubmit={createPost}
+      />
 
       <section className="mb-8">
         <div className="mb-3 flex items-center justify-between gap-3">
