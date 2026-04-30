@@ -7,6 +7,8 @@ import EditablePostCard from "@/components/EditablePostCard";
 import JourneyStatusBadge from "@/components/JourneyStatusBadge";
 import JourneyVisibilityBadge from "@/components/JourneyVisibilityBadge";
 import MilestoneProgressBadge from "@/components/MilestoneProgressBadge";
+import ProBadge from "@/components/ProBadge";
+import { getCheckInFocus } from "@/lib/dailyCheckIn";
 import { followUser, unfollowUser } from "@/lib/follow";
 import { achievementLabels, calculateDailyStreak } from "@/lib/gamification";
 import { supabase } from "@/lib/supabaseClient";
@@ -22,6 +24,7 @@ type Profile = {
   username: string | null;
   display_name: string | null;
   bio: string | null;
+  subscription_tier: string | null;
 };
 
 type ProfileMomentum = {
@@ -64,7 +67,7 @@ export default function ProfilePage() {
 
       const { data: profileData } = await supabase
         .from("profiles")
-        .select("id, username, display_name, bio")
+        .select("id, username, display_name, bio, subscription_tier")
         .eq("username", username)
         .maybeSingle();
 
@@ -313,6 +316,7 @@ export default function ProfilePage() {
       ),
     );
   };
+  const dailyCheckIns = posts.filter((post) => getCheckInFocus(post.content));
 
   if (loading) {
     return <main className="page-shell">Loading profile...</main>;
@@ -324,7 +328,10 @@ export default function ProfilePage() {
 
   return (
     <main className="page-shell">
-      <h1 className="text-3xl font-bold">{profile.display_name || "No Name"}</h1>
+      <div className="flex flex-wrap items-center gap-3">
+        <h1 className="text-3xl font-bold">{profile.display_name || "No Name"}</h1>
+        <ProBadge tier={profile.subscription_tier} />
+      </div>
       <p className="muted mt-1">@{profile.username}</p>
       <p className="mt-4">{profile.bio || "No bio yet"}</p>
       <div className="muted mt-4 flex gap-4 text-sm">
@@ -436,6 +443,34 @@ export default function ProfilePage() {
 
       <section className="mt-8">
         <h2 className="section-heading mb-3">Posts</h2>
+
+        {dailyCheckIns.length > 0 && (
+          <section className="mb-6">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="font-semibold">Recent Daily Check-Ins</h3>
+              <span className="muted text-sm">{dailyCheckIns.length}</span>
+            </div>
+            <div className="space-y-3">
+              {dailyCheckIns.slice(0, 3).map((post) => {
+                const focus = getCheckInFocus(post.content);
+
+                return (
+                  <article key={post.id} className="panel">
+                    <div className="mb-2 flex flex-wrap items-center gap-2">
+                      {focus && <span className="metric-pill text-xs">{focus}</span>}
+                      <time className="muted text-xs">
+                        {post.created_at
+                          ? new Date(post.created_at).toLocaleString()
+                          : "Just now"}
+                      </time>
+                    </div>
+                    <p className="text-sm">{post.content}</p>
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+        )}
 
         {isOwnProfile && (
           <div className="panel mb-4">

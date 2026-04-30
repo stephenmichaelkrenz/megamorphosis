@@ -249,8 +249,10 @@ export default function HomePage() {
     void loadInitialFeed();
   }, []);
 
-  const createPost = async () => {
-    if (!newPost.trim()) return;
+  const createPost = async (content = newPost) => {
+    const trimmedContent = content.trim();
+
+    if (!trimmedContent) return;
 
     setPosting(true);
 
@@ -266,7 +268,7 @@ export default function HomePage() {
 
     const { error } = await supabase.from("posts").insert({
       user_id: user.id,
-      content: newPost.trim(),
+      content: trimmedContent,
     });
 
     if (error) {

@@ -5,13 +5,21 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import JourneyStatusBadge from "@/components/JourneyStatusBadge";
 import MilestoneProgressBadge from "@/components/MilestoneProgressBadge";
+import ProBadge from "@/components/ProBadge";
 import { followUser, unfollowUser } from "@/lib/follow";
 import { supabase } from "@/lib/supabaseClient";
-import { Journey, Profile } from "@/types";
+import { Journey, Post, Profile } from "@/types";
 
 type SearchJourney = Journey & {
   profile?: Pick<Profile, "id" | "username" | "display_name">;
 };
+
+type SearchPost = Post & {
+  profile?: Pick<Profile, "id" | "username" | "display_name">;
+};
+
+type SearchFilter = "all" | "people" | "journeys" | "posts";
+const searchFilters: SearchFilter[] = ["all", "people", "journeys", "posts"];
 
 const normalizeQuery = (value: string | null) => (value ?? "").trim();
 
@@ -22,10 +30,16 @@ export default function SearchClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const query = normalizeQuery(searchParams.get("q"));
+  const requestedFilter = searchParams.get("type") as SearchFilter | null;
+  const activeFilter =
+    requestedFilter && searchFilters.includes(requestedFilter)
+      ? requestedFilter
+      : "all";
 
   const [input, setInput] = useState(query);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [journeys, setJourneys] = useState<SearchJourney[]>([]);
+  const [posts, setPosts] = useState<SearchPost[]>([]);
   const [milestoneCounts, setMilestoneCounts] = useState<
     Record<string, { completed: number; total: number }>
   >({});
@@ -35,7 +49,13 @@ export default function SearchClient() {
   const [loading, setLoading] = useState(false);
 
   const hasQuery = query.length > 0;
-  const resultCount = profiles.length + journeys.length;
+  const showPeople = activeFilter === "all" || activeFilter === "people";
+  const showJourneys = activeFilter === "all" || activeFilter === "journeys";
+  const showPosts = activeFilter === "all" || activeFilter === "posts";
+  const resultCount =
+    (showPeople ? profiles.length : 0) +
+    (showJourneys ? journeys.length : 0) +
+    (showPosts ? posts.length : 0);
 
   const escapedQuery = useMemo(() => escapeSearchTerm(query), [query]);
 
@@ -44,6 +64,7 @@ export default function SearchClient() {
       if (!hasQuery) {
         setProfiles([]);
         setJourneys([]);
+        setPosts([]);
         setMilestoneCounts({});
         setLoading(false);
         return;
@@ -61,11 +82,12 @@ export default function SearchClient() {
       const [
         { data: profileData },
         { data: journeyData },
+        { data: postData },
         { data: follows },
       ] = await Promise.all([
         supabase
           .from("profiles")
-          .select("id, username, display_name, bio, onboarded, created_at, updated_at")
+          .select("id, username, display_name, bio, onboarded, subscription_tier, created_at, updated_at")
           .eq("onboarded", true)
           .or(
             `username.ilike.${searchPattern},display_name.ilike.${searchPattern},bio.ilike.${searchPattern}`,
@@ -82,6 +104,12 @@ export default function SearchClient() {
           )
           .order("created_at", { ascending: false })
           .limit(12),
+        supabase
+          .from("posts")
+          .select("id, user_id, content, created_at, updated_at")
+          .ilike("content", searchPattern)
+          .order("created_at", { ascending: false })
+          .limit(12),
         user
           ? supabase
               .from("follows")
@@ -95,14 +123,28 @@ export default function SearchClient() {
         new Set(journeyRows.map((journey) => journey.user_id)),
       );
       const journeyIds = journeyRows.map((journey) => journey.id);
+      const postRows = postData ?? [];
+      const postUserIds = Array.from(
+        new Set(
+          postRows
+            .map((post) => post.user_id)
+            .filter((userId): userId is string => Boolean(userId)),
+        ),
+      );
 
-      const [{ data: journeyProfiles }, { data: milestoneRows }] =
+      const [{ data: journeyProfiles }, { data: postProfiles }, { data: milestoneRows }] =
         await Promise.all([
           journeyUserIds.length
             ? supabase
                 .from("profiles")
                 .select("id, username, display_name")
                 .in("id", journeyUserIds)
+            : Promise.resolve({ data: [] }),
+          postUserIds.length
+            ? supabase
+                .from("profiles")
+                .select("id, username, display_name")
+                .in("id", postUserIds)
             : Promise.resolve({ data: [] }),
           journeyIds.length
             ? supabase
@@ -139,6 +181,12 @@ export default function SearchClient() {
           ),
         })),
       );
+      setPosts(
+        postRows.map((post) => ({
+          ...post,
+          profile: postProfiles?.find((profile) => profile.id === post.user_id),
+        })),
+      );
       setMilestoneCounts(nextMilestoneCounts);
       setFollowingIds(new Set(follows?.map((follow) => follow.following_id) ?? []));
       setLoading(false);
@@ -151,7 +199,16 @@ export default function SearchClient() {
     event.preventDefault();
 
     const nextQuery = input.trim();
-    router.push(nextQuery ? `/search?q=${encodeURIComponent(nextQuery)}` : "/search");
+    const filterParam = activeFilter === "all" ? "" : `&type=${activeFilter}`;
+    router.push(
+      nextQuery ? `/search?q=${encodeURIComponent(nextQuery)}${filterParam}` : "/search",
+    );
+  };
+
+  const setFilter = (filter: SearchFilter) => {
+    const queryParam = query ? `?q=${encodeURIComponent(query)}` : "";
+    const filterParam = filter === "all" ? "" : `${query ? "&" : "?"}type=${filter}`;
+    router.push(`/search${queryParam}${filterParam}`);
   };
 
   const toggleFollow = async (targetUserId: string) => {
@@ -238,6 +295,18 @@ export default function SearchClient() {
         </div>
       </form>
 
+      <div className="mb-8 flex flex-wrap gap-2">
+        {searchFilters.map((filter) => (
+          <button
+            key={filter}
+            className={activeFilter === filter ? "btn-primary" : "btn-secondary"}
+            onClick={() => setFilter(filter)}
+          >
+            {filter[0].toUpperCase() + filter.slice(1)}
+          </button>
+        ))}
+      </div>
+
       {!hasQuery && (
         <p className="muted panel">
           Try a username, display name, journey title, category, or goal.
@@ -252,7 +321,7 @@ export default function SearchClient() {
 
       {hasQuery && !loading && resultCount > 0 && (
         <div className="space-y-10">
-          <section>
+          {showPeople && <section>
             <div className="mb-3 flex items-center justify-between">
               <h2 className="section-heading">People</h2>
               <span className="muted text-sm">{profiles.length}</span>
@@ -267,9 +336,10 @@ export default function SearchClient() {
                     <div className="flex items-start justify-between gap-3">
                       <Link
                         href={`/user/${profile.username}`}
-                        className="font-semibold"
+                        className="flex flex-wrap items-center gap-2 font-semibold"
                       >
-                        {profile.display_name || "No Name"}
+                        <span>{profile.display_name || "No Name"}</span>
+                        <ProBadge tier={profile.subscription_tier} />
                       </Link>
                       <div className="flex shrink-0 flex-wrap justify-end gap-2">
                         {renderMessageLink(profile)}
@@ -282,9 +352,9 @@ export default function SearchClient() {
                 ))}
               </div>
             )}
-          </section>
+          </section>}
 
-          <section>
+          {showJourneys && <section>
             <div className="mb-3 flex items-center justify-between">
               <h2 className="section-heading">Journeys</h2>
               <span className="muted text-sm">{journeys.length}</span>
@@ -333,7 +403,39 @@ export default function SearchClient() {
                 ))}
               </div>
             )}
-          </section>
+          </section>}
+
+          {showPosts && <section>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="section-heading">Posts</h2>
+              <span className="muted text-sm">{posts.length}</span>
+            </div>
+
+            {posts.length === 0 ? (
+              <p className="muted panel">No posts matched.</p>
+            ) : (
+              <div className="space-y-3">
+                {posts.map((post) => (
+                  <article key={post.id} className="panel">
+                    {post.profile?.username && (
+                      <Link
+                        href={`/user/${post.profile.username}`}
+                        className="font-semibold"
+                      >
+                        @{post.profile.username}
+                      </Link>
+                    )}
+                    <p className="mt-2 text-sm">{post.content}</p>
+                    <time className="muted mt-3 block text-xs">
+                      {post.created_at
+                        ? new Date(post.created_at).toLocaleString()
+                        : "Just now"}
+                    </time>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>}
         </div>
       )}
     </>

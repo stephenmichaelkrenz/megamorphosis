@@ -725,6 +725,7 @@ export type Database = {
           display_name: string
           id: string
           onboarded: boolean
+          subscription_tier: string
           updated_at: string
           username: string
         }
@@ -734,6 +735,7 @@ export type Database = {
           display_name?: string
           id: string
           onboarded?: boolean
+          subscription_tier?: string
           updated_at?: string
           username: string
         }
@@ -743,6 +745,7 @@ export type Database = {
           display_name?: string
           id?: string
           onboarded?: boolean
+          subscription_tier?: string
           updated_at?: string
           username?: string
         }

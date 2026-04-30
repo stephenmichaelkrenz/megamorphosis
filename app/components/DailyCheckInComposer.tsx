@@ -1,6 +1,12 @@
 "use client";
 
-import { getDailyCheckInPrompt, getDailyCheckInStarters } from "@/lib/dailyCheckIn";
+import { useState } from "react";
+import {
+  formatFocusedCheckIn,
+  getDailyCheckInPrompt,
+  getDailyCheckInStarters,
+  getDailyFocusAreas,
+} from "@/lib/dailyCheckIn";
 
 export default function DailyCheckInComposer({
   value,
@@ -11,10 +17,12 @@ export default function DailyCheckInComposer({
   value: string;
   posting: boolean;
   onChange: (value: string) => void;
-  onSubmit: () => void;
+  onSubmit: (content: string) => void;
 }) {
   const prompt = getDailyCheckInPrompt();
   const starters = getDailyCheckInStarters();
+  const focusAreas = getDailyFocusAreas();
+  const [focus, setFocus] = useState(focusAreas[0]);
 
   const applyStarter = (starter: string) => {
     onChange(value.trim() ? `${value.trim()}\n${starter}` : starter);
@@ -31,6 +39,18 @@ export default function DailyCheckInComposer({
       </div>
 
       <div className="mb-3 flex flex-wrap gap-2">
+        <select
+          className="field w-auto min-w-36"
+          value={focus}
+          onChange={(event) => setFocus(event.target.value)}
+          aria-label="Today’s focus"
+        >
+          {focusAreas.map((area) => (
+            <option key={area} value={area}>
+              {area}
+            </option>
+          ))}
+        </select>
         {starters.map((starter) => (
           <button
             key={starter.label}
@@ -50,7 +70,7 @@ export default function DailyCheckInComposer({
         className="field h-24 resize-none"
       />
       <button
-        onClick={onSubmit}
+        onClick={() => onSubmit(formatFocusedCheckIn(focus, value))}
         disabled={posting}
         className="btn-primary mt-3"
       >

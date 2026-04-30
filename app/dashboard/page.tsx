@@ -7,6 +7,7 @@ import EditablePostCard from "@/components/EditablePostCard";
 import JourneyStatusBadge from "@/components/JourneyStatusBadge";
 import JourneyVisibilityBadge from "@/components/JourneyVisibilityBadge";
 import MilestoneProgressBadge from "@/components/MilestoneProgressBadge";
+import ProBadge from "@/components/ProBadge";
 import { achievementLabels, calculateDailyStreak } from "@/lib/gamification";
 import { supabase } from "@/lib/supabaseClient";
 import {
@@ -26,6 +27,7 @@ type DashboardPost = Post & {
 type DashboardProfile = {
   username: string | null;
   display_name: string | null;
+  subscription_tier: string | null;
 };
 
 type DashboardUpdate = Pick<
@@ -49,6 +51,12 @@ type DashboardCheckin = CircleCheckin & {
   };
 };
 
+type WeeklyRecap = {
+  posts: number;
+  journeyUpdates: number;
+  circleCheckins: number;
+};
+
 export default function Dashboard() {
   const [journeys, setJourneys] = useState<Journey[]>([]);
   const [milestones, setMilestones] = useState<JourneyMilestone[]>([]);
@@ -61,6 +69,11 @@ export default function Dashboard() {
   const [journeyStreak, setJourneyStreak] = useState(0);
   const [circleCheckinStreak, setCircleCheckinStreak] = useState(0);
   const [achievementBadges, setAchievementBadges] = useState<string[]>([]);
+  const [weeklyRecap, setWeeklyRecap] = useState<WeeklyRecap>({
+    posts: 0,
+    journeyUpdates: 0,
+    circleCheckins: 0,
+  });
   const [newPost, setNewPost] = useState("");
   const [posting, setPosting] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -86,7 +99,7 @@ export default function Dashboard() {
       ] = await Promise.all([
         supabase
           .from("profiles")
-          .select("username, display_name")
+          .select("username, display_name, subscription_tier")
           .eq("id", user.id)
           .maybeSingle(),
         supabase
@@ -124,6 +137,7 @@ export default function Dashboard() {
         { data: checkinRows },
         { data: ownCheckinRows },
         { data: allUpdateRows },
+        { data: allPostRows },
       ] = await Promise.all([
         journeyIds.length
           ? supabase
@@ -176,6 +190,7 @@ export default function Dashboard() {
               .select("created_at")
               .in("journey_id", activeJourneyIds)
           : { data: [] },
+        supabase.from("posts").select("created_at").eq("user_id", user.id),
       ]);
 
       const checkinUserIds = Array.from(
@@ -324,6 +339,21 @@ export default function Dashboard() {
           updateCount: allUpdateRows?.length ?? 0,
         }),
       );
+      const weekAgo = Date.now() - 7 * 86_400_000;
+      setWeeklyRecap({
+        posts:
+          allPostRows?.filter(
+            (post) => new Date(post.created_at ?? 0).getTime() >= weekAgo,
+          ).length ?? 0,
+        journeyUpdates:
+          allUpdateRows?.filter(
+            (update) => new Date(update.created_at ?? 0).getTime() >= weekAgo,
+          ).length ?? 0,
+        circleCheckins:
+          ownCheckinRows?.filter(
+            (checkin) => new Date(checkin.created_at).getTime() >= weekAgo,
+          ).length ?? 0,
+      });
       setLoading(false);
     };
 
@@ -338,8 +368,8 @@ export default function Dashboard() {
     );
   };
 
-  const createPost = async () => {
-    const trimmedPost = newPost.trim();
+  const createPost = async (content = newPost) => {
+    const trimmedPost = content.trim();
 
     if (!trimmedPost || !currentUserId) return;
 
@@ -410,9 +440,12 @@ export default function Dashboard() {
   return (
     <main className="wide-shell">
       <section className="mb-8">
-        <h1 className="text-3xl font-bold">
-          {profile?.display_name ? `${profile.display_name}'s Dashboard` : "Dashboard"}
-        </h1>
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="text-3xl font-bold">
+            {profile?.display_name ? `${profile.display_name}'s Dashboard` : "Dashboard"}
+          </h1>
+          <ProBadge tier={profile?.subscription_tier} />
+        </div>
         <div className="mt-4 flex gap-3">
           <Link
             href="/new-journey"
@@ -435,6 +468,27 @@ export default function Dashboard() {
         onChange={setNewPost}
         onSubmit={createPost}
       />
+
+      <section className="mb-8">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="section-heading">Weekly Recap</h2>
+          <span className="muted text-sm">Last 7 days</span>
+        </div>
+        <div className="grid gap-3 md:grid-cols-3">
+          <div className="panel">
+            <p className="muted text-xs font-semibold uppercase">Check-Ins</p>
+            <p className="mt-1 text-2xl font-bold">{weeklyRecap.posts}</p>
+          </div>
+          <div className="panel">
+            <p className="muted text-xs font-semibold uppercase">Journey Updates</p>
+            <p className="mt-1 text-2xl font-bold">{weeklyRecap.journeyUpdates}</p>
+          </div>
+          <div className="panel">
+            <p className="muted text-xs font-semibold uppercase">Circle Check-Ins</p>
+            <p className="mt-1 text-2xl font-bold">{weeklyRecap.circleCheckins}</p>
+          </div>
+        </div>
+      </section>
 
       <section className="mb-8">
         <div className="mb-3 flex items-center justify-between gap-3">

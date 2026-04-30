@@ -14,6 +14,16 @@ const promptStarters = [
   { label: "Next Step", text: "The next step I am committing to is " },
 ];
 
+const focusAreas = [
+  "Mind",
+  "Body",
+  "Work",
+  "Relationships",
+  "Faith",
+  "Creative",
+  "Recovery",
+];
+
 export const getDailyCheckInPrompt = (date = new Date()) => {
   const dayKey = Date.UTC(
     date.getUTCFullYear(),
@@ -26,3 +36,19 @@ export const getDailyCheckInPrompt = (date = new Date()) => {
 };
 
 export const getDailyCheckInStarters = () => promptStarters;
+
+export const getDailyFocusAreas = () => focusAreas;
+
+export const formatFocusedCheckIn = (focus: string, body: string) => {
+  const trimmedBody = body.trim();
+  if (!trimmedBody) return "";
+
+  return trimmedBody.startsWith("[")
+    ? trimmedBody
+    : `[${focus}] ${trimmedBody}`;
+};
+
+export const getCheckInFocus = (content?: string | null) => {
+  const match = content?.match(/^\[([^\]]+)\]/);
+  return match?.[1] ?? null;
+};
