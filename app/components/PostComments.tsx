@@ -17,6 +17,14 @@ type Notice = {
   message: string;
 };
 
+const reportReasons = [
+  "Spam",
+  "Harassment",
+  "Hate or abuse",
+  "Privacy concern",
+  "Other",
+];
+
 export default function PostComments({
   postId,
   currentUserId,
@@ -139,6 +147,59 @@ export default function PostComments({
     });
   };
 
+  const reportComment = async (comment: PostComment) => {
+    const reason = window.prompt(
+      `Why are you reporting this comment?\n\n${reportReasons.join(", ")}`,
+      "Other",
+    );
+
+    const trimmedReason = reason?.trim();
+    if (!trimmedReason) return;
+
+    if (!currentUserId) {
+      setNotice({ type: "error", message: "Log in to report comments." });
+      return;
+    }
+
+    const { error } = await supabase.from("post_comment_reports").insert({
+      comment_id: comment.id,
+      reporter_id: currentUserId,
+      reason: trimmedReason,
+    });
+
+    if (error) {
+      setNotice({ type: "error", message: error.message });
+      return;
+    }
+
+    setNotice({ type: "success", message: "Report submitted." });
+  };
+
+  const blockUser = async (blockedUserId: string) => {
+    if (!currentUserId) {
+      setNotice({ type: "error", message: "Log in to block users." });
+      return;
+    }
+
+    if (currentUserId === blockedUserId) {
+      setNotice({ type: "error", message: "You cannot block yourself." });
+      return;
+    }
+
+    const { error } = await supabase.from("user_blocks").upsert({
+      blocker_id: currentUserId,
+      blocked_id: blockedUserId,
+    });
+
+    if (error) {
+      setNotice({ type: "error", message: error.message });
+      return;
+    }
+
+    await loadComments();
+    setNotice({ type: "success", message: "User blocked." });
+  };
+
   return (
     <section
       id={anchorId}
@@ -205,6 +266,22 @@ export default function PostComments({
                     >
                       {comment.hidden_at ? "Unhide" : "Hide"}
                     </button>
+                  )}
+                  {currentUserId && !isOwnComment && (
+                    <>
+                      <button
+                        className="font-semibold"
+                        onClick={() => reportComment(comment)}
+                      >
+                        Report
+                      </button>
+                      <button
+                        className="font-semibold"
+                        onClick={() => blockUser(comment.user_id)}
+                      >
+                        Block
+                      </button>
+                    </>
                   )}
                 </div>
               </article>

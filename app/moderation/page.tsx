@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
-import { Journey, JourneyUpdateComment } from "@/types";
+import { Journey, JourneyUpdateComment, Post, PostComment } from "@/types";
 
 type ProfileSummary = {
   id: string;
@@ -26,8 +26,18 @@ type BlockRow = {
   created_at: string;
 };
 
-type ModerationComment = JourneyUpdateComment & {
+type ModerationComment = {
+  id: string;
+  user_id: string;
+  body: string;
+  hidden_at: string | null;
+  hidden_by: string | null;
+  created_at: string;
+  source: "journey" | "post";
+  journey_id?: string;
+  post_id?: string;
   journey?: Pick<Journey, "id" | "title">;
+  post?: Pick<Post, "id" | "content">;
   profile?: ProfileSummary;
   hiddenByProfile?: ProfileSummary;
   reports: CommentReport[];
@@ -135,7 +145,9 @@ export default function ModerationPage() {
     const [
       { data: tractionData, error: tractionLoadError },
       { data: reportData },
+      { data: postReportData },
       { data: hiddenCommentData },
+      { data: hiddenPostCommentData },
       { data: blockData },
     ] =
       await Promise.all([
@@ -145,7 +157,16 @@ export default function ModerationPage() {
           .select("id, comment_id, reporter_id, reason, created_at")
           .order("created_at", { ascending: false }),
         supabase
+          .from("post_comment_reports")
+          .select("id, comment_id, reporter_id, reason, created_at")
+          .order("created_at", { ascending: false }),
+        supabase
           .from("journey_update_comments")
+          .select("*")
+          .not("hidden_at", "is", null)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("post_comments")
           .select("*")
           .not("hidden_at", "is", null)
           .order("created_at", { ascending: false }),
@@ -165,8 +186,12 @@ export default function ModerationPage() {
     }
 
     const reportRows = (reportData ?? []) as CommentReport[];
+    const postReportRows = (postReportData ?? []) as CommentReport[];
     const reportCommentIds = Array.from(
       new Set(reportRows.map((report) => report.comment_id)),
+    );
+    const reportedPostCommentIds = Array.from(
+      new Set(postReportRows.map((report) => report.comment_id)),
     );
 
     const { data: reportedCommentData } = reportCommentIds.length
@@ -174,6 +199,13 @@ export default function ModerationPage() {
           .from("journey_update_comments")
           .select("*")
           .in("id", reportCommentIds)
+          .order("created_at", { ascending: false })
+      : { data: [] };
+    const { data: reportedPostCommentData } = reportedPostCommentIds.length
+      ? await supabase
+          .from("post_comments")
+          .select("*")
+          .in("id", reportedPostCommentIds)
           .order("created_at", { ascending: false })
       : { data: [] };
 
@@ -184,8 +216,18 @@ export default function ModerationPage() {
         ...(hiddenCommentData ?? []),
       ] as JourneyUpdateComment[]
     ).forEach((comment) => commentsById.set(comment.id, comment));
+    const postCommentsById = new Map<string, PostComment>();
+    (
+      [
+        ...(reportedPostCommentData ?? []),
+        ...(hiddenPostCommentData ?? []),
+      ] as PostComment[]
+    ).forEach((comment) => postCommentsById.set(comment.id, comment));
 
     const commentRows = Array.from(commentsById.values()).sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    );
+    const postCommentRows = Array.from(postCommentsById.values()).sort(
       (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
     );
 
@@ -199,14 +241,29 @@ export default function ModerationPage() {
           .select("id, title")
           .in("id", journeyIds)
       : { data: [] };
+    const postIds = Array.from(
+      new Set(postCommentRows.map((comment) => comment.post_id)),
+    );
+    const { data: postData } = postIds.length
+      ? await supabase.from("posts").select("id, content").in("id", postIds)
+      : { data: [] };
 
     const journeys = (journeyData ?? []) as Pick<Journey, "id" | "title">[];
     const journeyMap = new Map(journeys.map((journey) => [journey.id, journey]));
+    const posts = (postData ?? []) as Pick<Post, "id" | "content">[];
+    const postMap = new Map(posts.map((post) => [post.id, post]));
 
     const reportsByComment = new Map<string, CommentReport[]>();
     reportRows.forEach((report) => {
       reportsByComment.set(report.comment_id, [
         ...(reportsByComment.get(report.comment_id) ?? []),
+        report,
+      ]);
+    });
+    const reportsByPostComment = new Map<string, CommentReport[]>();
+    postReportRows.forEach((report) => {
+      reportsByPostComment.set(report.comment_id, [
+        ...(reportsByPostComment.get(report.comment_id) ?? []),
         report,
       ]);
     });
@@ -216,7 +273,12 @@ export default function ModerationPage() {
       profileIds.add(comment.user_id);
       if (comment.hidden_by) profileIds.add(comment.hidden_by);
     });
+    postCommentRows.forEach((comment) => {
+      profileIds.add(comment.user_id);
+      if (comment.hidden_by) profileIds.add(comment.hidden_by);
+    });
     reportRows.forEach((report) => profileIds.add(report.reporter_id));
+    postReportRows.forEach((report) => profileIds.add(report.reporter_id));
     (blockData ?? []).forEach((block) => {
       profileIds.add(block.blocker_id);
       profileIds.add(block.blocked_id);
@@ -238,14 +300,44 @@ export default function ModerationPage() {
 
     setProfiles(profileMap);
     setBlocks((blockData ?? []) as BlockRow[]);
-    setComments(
-      commentRows.map((comment) => ({
-        ...comment,
+    const journeyModerationComments: ModerationComment[] = commentRows.map(
+      (comment) => ({
+        id: comment.id,
+        user_id: comment.user_id,
+        body: comment.body,
+        hidden_at: comment.hidden_at,
+        hidden_by: comment.hidden_by,
+        created_at: comment.created_at,
+        source: "journey",
+        journey_id: comment.journey_id,
         journey: journeyMap.get(comment.journey_id),
         profile: profileMap[comment.user_id],
         hiddenByProfile: comment.hidden_by ? profileMap[comment.hidden_by] : undefined,
         reports: reportsByComment.get(comment.id) ?? [],
-      })),
+      }),
+    );
+    const postModerationComments: ModerationComment[] = postCommentRows.map(
+      (comment) => ({
+        id: comment.id,
+        user_id: comment.user_id,
+        body: comment.body,
+        hidden_at: comment.hidden_at,
+        hidden_by: comment.hidden_by,
+        created_at: comment.created_at,
+        source: "post",
+        post_id: comment.post_id,
+        post: postMap.get(comment.post_id),
+        profile: profileMap[comment.user_id],
+        hiddenByProfile: comment.hidden_by ? profileMap[comment.hidden_by] : undefined,
+        reports: reportsByPostComment.get(comment.id) ?? [],
+      }),
+    );
+
+    setComments(
+      [...journeyModerationComments, ...postModerationComments].sort(
+        (a, b) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      ),
     );
     setLoading(false);
   }, [router]);
@@ -272,8 +364,10 @@ export default function ModerationPage() {
 
     setWorkingId(comment.id);
 
+    const table =
+      comment.source === "post" ? "post_comments" : "journey_update_comments";
     const { error } = await supabase
-      .from("journey_update_comments")
+      .from(table)
       .update({
         hidden_at: comment.hidden_at ? null : new Date().toISOString(),
         hidden_by: comment.hidden_at ? null : currentUserId,
@@ -361,8 +455,17 @@ export default function ModerationPage() {
           <p className="font-semibold">{profileName(comment.profile)}</p>
           <p className="muted mt-1 text-sm">
             On{" "}
-            <Link href={`/journey/${comment.journey_id}`} className="font-semibold">
-              {comment.journey?.title ?? "Journey"}
+            <Link
+              href={
+                comment.source === "post"
+                  ? `/#post-comments-${comment.post_id}`
+                  : `/journey/${comment.journey_id}`
+              }
+              className="font-semibold"
+            >
+              {comment.source === "post"
+                ? "Feed post"
+                : (comment.journey?.title ?? "Journey")}
             </Link>
           </p>
         </div>
@@ -385,8 +488,16 @@ export default function ModerationPage() {
       </div>
 
       <p className="mt-4">{comment.body}</p>
+      {comment.source === "post" && comment.post?.content && (
+        <p className="muted mt-3 border-l border-[var(--border)] pl-3 text-sm">
+          {comment.post.content}
+        </p>
+      )}
 
       <div className="mt-4 flex flex-wrap gap-2">
+        <span className="metric-pill">
+          {comment.source === "post" ? "Feed" : "Journey"}
+        </span>
         {comment.hidden_at && (
           <span className="metric-pill">
             Hidden by {profileName(comment.hiddenByProfile)}
