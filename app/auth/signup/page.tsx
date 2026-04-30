@@ -52,7 +52,11 @@ export default function SignupPage() {
 
   return (
     <main className="narrow-shell">
-      <h1 className="mb-6 text-2xl font-bold">Sign Up</h1>
+      <h1 className="mb-3 text-2xl font-bold">Sign Up</h1>
+      <p className="muted mb-6 text-sm">
+        Create your account, choose your public handle, then post your first
+        check-in.
+      </p>
 
       <form onSubmit={handleSignup}>
         <input
@@ -92,6 +96,15 @@ export default function SignupPage() {
         </Link>
         .
       </p>
+
+      <div className="panel mt-6">
+        <h2 className="font-semibold">What happens next</h2>
+        <ol className="muted mt-3 list-inside list-decimal space-y-2 text-sm">
+          <li>Set your username and profile.</li>
+          <li>Post one check-in to start your visible progress.</li>
+          <li>Find your first Circle or people to follow.</li>
+        </ol>
+      </div>
     </main>
   );
 }

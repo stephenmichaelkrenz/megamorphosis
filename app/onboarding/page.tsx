@@ -71,7 +71,7 @@ export default function OnboardingPage() {
       return;
     }
 
-    router.push(`/user/${normalizedUsername}`);
+    router.push("/welcome");
   };
 
   if (loading) {
@@ -80,7 +80,12 @@ export default function OnboardingPage() {
 
   return (
     <main className="page-shell">
-      <h1 className="mb-6 text-2xl font-bold">Complete Your Profile</h1>
+      <p className="muted mb-2 text-sm font-semibold">Step 1 of 2</p>
+      <h1 className="mb-3 text-2xl font-bold">Complete Your Profile</h1>
+      <p className="muted mb-6 text-sm">
+        Pick the public identity people will recognize, then Megamorphosis will
+        help you post your first check-in.
+      </p>
 
       <input
         className="field mb-3"
@@ -108,7 +113,7 @@ export default function OnboardingPage() {
       />
 
       <button onClick={handleSubmit} disabled={saving} className="btn-primary">
-        {saving ? "Saving..." : "Finish"}
+        {saving ? "Saving..." : "Continue"}
       </button>
     </main>
   );
