@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
@@ -114,8 +115,15 @@ export default function ProfileSettingsPage() {
 
   return (
     <main className="page-shell">
-      <h1 className="mb-1 text-2xl font-bold">Edit Profile</h1>
-      <p className="muted mb-6">Keep your public identity current.</p>
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold">Edit Profile</h1>
+          <p className="muted mt-1">Keep your public identity current.</p>
+        </div>
+        <Link href="/settings/account" className="btn-secondary">
+          Account Settings
+        </Link>
+      </div>
 
       <label className="mb-4 block">
         <span className="mb-2 block text-sm font-semibold">Username</span>
