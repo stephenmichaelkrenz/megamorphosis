@@ -723,6 +723,7 @@ export type Database = {
           bio: string
           created_at: string
           display_name: string
+          email_digest_enabled: boolean
           id: string
           onboarded: boolean
           subscription_tier: string
@@ -733,6 +734,7 @@ export type Database = {
           bio?: string
           created_at?: string
           display_name?: string
+          email_digest_enabled?: boolean
           id: string
           onboarded?: boolean
           subscription_tier?: string
@@ -743,6 +745,7 @@ export type Database = {
           bio?: string
           created_at?: string
           display_name?: string
+          email_digest_enabled?: boolean
           id?: string
           onboarded?: boolean
           subscription_tier?: string

@@ -13,6 +13,7 @@ type EditableProfile = {
   username: string;
   display_name: string;
   bio: string;
+  email_digest_enabled: boolean;
 };
 
 export default function ProfileSettingsPage() {
@@ -34,7 +35,7 @@ export default function ProfileSettingsPage() {
 
       const { data, error } = await supabase
         .from("profiles")
-        .select("username, display_name, bio")
+        .select("username, display_name, bio, email_digest_enabled")
         .eq("id", user.id)
         .maybeSingle();
 
@@ -53,6 +54,7 @@ export default function ProfileSettingsPage() {
         username: data.username ?? "",
         display_name: data.display_name ?? "",
         bio: data.bio ?? "",
+        email_digest_enabled: data.email_digest_enabled ?? true,
       });
       setLoading(false);
     };
@@ -87,6 +89,7 @@ export default function ProfileSettingsPage() {
         username: normalizedUsername,
         display_name: profile.display_name.trim(),
         bio: profile.bio.trim(),
+        email_digest_enabled: profile.email_digest_enabled,
         onboarded: true,
       })
       .eq("id", user.id);
@@ -157,6 +160,35 @@ export default function ProfileSettingsPage() {
           }
         />
       </label>
+
+      <section className="panel mb-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h2 className="font-semibold">Email Digest</h2>
+            <p className="muted mt-1 text-sm">
+              Receive a daily email only when you have unread comments or direct
+              messages.
+            </p>
+          </div>
+          <label className="flex items-center gap-2 text-sm font-semibold">
+            <input
+              type="checkbox"
+              checked={profile.email_digest_enabled}
+              onChange={(event) =>
+                setProfile((current) =>
+                  current
+                    ? {
+                        ...current,
+                        email_digest_enabled: event.target.checked,
+                      }
+                    : current,
+                )
+              }
+            />
+            Enabled
+          </label>
+        </div>
+      </section>
 
       <div className="flex gap-3">
         <button onClick={saveProfile} disabled={saving} className="btn-primary">

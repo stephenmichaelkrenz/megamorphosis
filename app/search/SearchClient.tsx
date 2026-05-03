@@ -18,6 +18,18 @@ type SearchPost = Post & {
   profile?: Pick<Profile, "id" | "username" | "display_name">;
 };
 
+type SearchProfile = Pick<
+  Profile,
+  | "id"
+  | "username"
+  | "display_name"
+  | "bio"
+  | "onboarded"
+  | "subscription_tier"
+  | "created_at"
+  | "updated_at"
+>;
+
 type SearchFilter = "all" | "people" | "journeys" | "posts";
 const searchFilters: SearchFilter[] = ["all", "people", "journeys", "posts"];
 
@@ -37,7 +49,7 @@ export default function SearchClient() {
       : "all";
 
   const [input, setInput] = useState(query);
-  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [profiles, setProfiles] = useState<SearchProfile[]>([]);
   const [journeys, setJourneys] = useState<SearchJourney[]>([]);
   const [posts, setPosts] = useState<SearchPost[]>([]);
   const [milestoneCounts, setMilestoneCounts] = useState<

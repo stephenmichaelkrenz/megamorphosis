@@ -74,11 +74,16 @@ export async function GET(request: Request) {
     ] = await Promise.all([
       supabase
         .from("profiles")
-        .select("username, display_name")
+        .select("username, display_name, email_digest_enabled")
         .eq("id", userId)
         .maybeSingle(),
       supabase.auth.admin.getUserById(userId),
     ]);
+
+    if (profile?.email_digest_enabled === false) {
+      skipped += 1;
+      continue;
+    }
 
     if (userError || !user?.email) {
       skipped += 1;
