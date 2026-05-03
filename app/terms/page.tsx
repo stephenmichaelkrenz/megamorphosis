@@ -13,7 +13,7 @@ export default function TermsPage() {
     <main className="page-shell">
       <section className="mb-8">
         <h1 className="text-3xl font-bold">Terms</h1>
-        <p className="muted mt-2">Last updated: April 28, 2026</p>
+        <p className="muted mt-2">Last updated: May 3, 2026</p>
       </section>
 
       <div className="space-y-5">
@@ -51,7 +51,8 @@ export default function TermsPage() {
             These are MVP placeholder terms. Before accepting a broad public user
             base, Megamorphosis should replace this page with reviewed terms that
             cover subscriptions, refunds, content rights, age limits, acceptable
-            use, and support obligations.
+            use, support obligations, email communications, data export, and
+            account deletion.
           </p>
         </section>
       </div>

@@ -516,6 +516,31 @@ export default function HomePage() {
         </div>
       </section>
 
+      {!loading && !currentUserId && (
+        <section className="mb-8 grid gap-3 sm:grid-cols-3">
+          <div className="panel text-left">
+            <h2 className="font-semibold">Track the change</h2>
+            <p className="muted mt-2 text-sm">
+              Turn goals into public or private Journeys with updates and
+              milestones.
+            </p>
+          </div>
+          <div className="panel text-left">
+            <h2 className="font-semibold">Share the proof</h2>
+            <p className="muted mt-2 text-sm">
+              Post check-ins, earn Respect, and let progress compound in the
+              feed.
+            </p>
+          </div>
+          <div className="panel text-left">
+            <h2 className="font-semibold">Find your circle</h2>
+            <p className="muted mt-2 text-sm">
+              Join focused Circles and follow people building alongside you.
+            </p>
+          </div>
+        </section>
+      )}
+
       {loading ? (
         <section className="panel mb-8">
           <p className="muted text-sm">Finding public progress...</p>

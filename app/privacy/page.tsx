@@ -13,7 +13,7 @@ export default function PrivacyPage() {
     <main className="page-shell">
       <section className="mb-8">
         <h1 className="text-3xl font-bold">Privacy</h1>
-        <p className="muted mt-2">Last updated: April 28, 2026</p>
+        <p className="muted mt-2">Last updated: May 3, 2026</p>
       </section>
 
       <div className="space-y-5">
@@ -23,7 +23,8 @@ export default function PrivacyPage() {
             Megamorphosis stores account information, profile details, posts,
             journeys, updates, uploaded evidence image URLs, comments, follows,
             respects, notifications, direct messages, reports, and blocks that
-            you choose to create while using the app.
+            you choose to create while using the app. Email preferences are also
+            stored so users can control daily digest emails.
           </p>
         </section>
 
@@ -50,9 +51,9 @@ export default function PrivacyPage() {
           <h2 className="mb-2 text-lg font-semibold">Launch Note</h2>
           <p className="text-sm leading-6">
             This is a starter privacy notice for the MVP. Before a broad public
-            launch, Megamorphosis should replace this page with a reviewed policy
-            that matches the final product, analytics, payments, support, and
-            data retention practices.
+            launch, Megamorphosis should replace this page with a reviewed
+            policy that matches the final product, analytics, payments, support,
+            email, export, deletion, and data retention practices.
           </p>
         </section>
       </div>

@@ -10,29 +10,37 @@ export const metadata: Metadata = {
 };
 
 const readyItems = [
-  "Authentication, onboarding, and profile URLs",
-  "Journey creation, updates, milestones, and visibility",
-  "Follows, Respect, comments, notifications, and DMs",
-  "Circles, check-ins, blocking, reports, and role-gated moderation",
-  "Privacy, terms, sitemap, robots, and production checklist",
+  "Production domain, Supabase auth, onboarding, and profile URLs",
+  "Journeys, updates, milestones, visibility, and proof posts",
+  "Follows, Respect, comments, notifications, DMs, and activity digest",
+  "Circles, check-ins, blocking, reporting, and private moderation",
+  "Welcome email, daily unread digest, account settings, and email preferences",
 ];
 
 const remainingItems = [
-  "Replace MVP legal pages with reviewed production language",
-  "Confirm production Supabase Auth redirect URLs",
-  "Confirm storage policies for journey update images",
-  "Connect Vercel and DNS for www.megamorphosis.com",
-  "Confirm production platform moderator rows after first admin onboarding",
+  "Replace MVP legal pages with reviewed production policies before broad launch",
+  "Create support@megamorphosis.com or an equivalent support intake",
+  "Add export/delete-account flows before scaling beyond private launch",
+  "Review analytics, payments, and email compliance before monetization",
+  "Keep moderation queue ownership clear during the first user cohort",
+];
+
+const demoBeats = [
+  "New user signs up, completes onboarding, and posts a first check-in",
+  "Returning user lands on Today and sees the next best action",
+  "User joins a Circle, follows people, comments, and sends a DM",
+  "Owner or moderator handles reports, hidden comments, and blocking",
+  "Email brings users back only when meaningful activity is unread",
 ];
 
 export default function LaunchPage() {
   return (
     <main className="page-shell">
       <section className="mb-8">
-        <h1 className="text-3xl font-bold">Launch Status</h1>
+        <h1 className="text-3xl font-bold">Private Launch Readiness</h1>
         <p className="muted mt-2">
-          A practical snapshot of what is ready and what still needs review
-          before opening Megamorphosis broadly.
+          A founder-facing snapshot of what is ready, what still needs care, and
+          how to demo Megamorphosis clearly.
         </p>
       </section>
 
@@ -46,7 +54,7 @@ export default function LaunchPage() {
       </section>
 
       <section className="panel mb-5">
-        <h2 className="mb-3 text-lg font-semibold">Before Public Launch</h2>
+        <h2 className="mb-3 text-lg font-semibold">Before Broad Public Launch</h2>
         <ul className="space-y-2 text-sm">
           {remainingItems.map((item) => (
             <li key={item}>{item}</li>
@@ -54,9 +62,21 @@ export default function LaunchPage() {
         </ul>
       </section>
 
+      <section className="panel mb-5">
+        <h2 className="mb-3 text-lg font-semibold">Demo Path</h2>
+        <ol className="list-inside list-decimal space-y-2 text-sm">
+          {demoBeats.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ol>
+      </section>
+
       <div className="flex flex-wrap gap-3">
         <Link href="/auth/signup" className="btn-primary">
           Test Signup
+        </Link>
+        <Link href="/help" className="btn-secondary">
+          Help
         </Link>
         <Link href="/privacy" className="btn-secondary">
           Privacy

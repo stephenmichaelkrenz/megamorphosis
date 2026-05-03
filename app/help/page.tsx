@@ -62,11 +62,11 @@ export default function HelpPage() {
           <p className="text-sm leading-6">
             A dedicated support inbox is coming. Until then, use in-app reports
             for safety issues and keep sensitive personal information out of
-            public posts, journeys, comments, and Circle check-ins.
+            public posts, journeys, comments, and Circle check-ins. Account data
+            export and deletion flows are planned before a broad public launch.
           </p>
         </section>
       </div>
     </main>
   );
 }
-
