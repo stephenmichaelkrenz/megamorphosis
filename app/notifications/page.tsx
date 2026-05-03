@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { Notification } from "@/types";
@@ -68,9 +68,39 @@ type NotificationData = {
   directMessages: Record<string, DirectMessageSummary>;
 };
 
+type NotificationListItem = {
+  href: string;
+  message: string;
+  detail: string;
+};
+
+type DigestGroup = {
+  key: string;
+  title: string;
+  href: string;
+  totalCount: number;
+  unreadCount: number;
+  latestAt: string;
+  detail: string;
+};
+
 const snippet = (value: string, maxLength = 72) => {
   if (value.length <= maxLength) return value;
   return `${value.slice(0, maxLength - 1).trim()}...`;
+};
+
+const digestTitleFor = (notification: Notification) => {
+  if (notification.target_type === "direct_message") return "Messages";
+  if (
+    notification.target_type === "comment" ||
+    notification.target_type === "post_comment"
+  ) {
+    return "Comments";
+  }
+  if (notification.type === "respect") return "Respect";
+  if (notification.type === "follow") return "Follows";
+  if (notification.target_type === "circle_checkin") return "Circles";
+  return "Activity";
 };
 
 const fetchNotificationData = async (userId: string): Promise<NotificationData> => {
@@ -310,85 +340,129 @@ export default function NotificationsPage() {
     setMarkingRead(false);
   };
 
-  const renderNotification = (notification: Notification) => {
-    const actor = notification.actor_id
-      ? profiles[notification.actor_id]
-      : null;
-    const actorName =
-      actor?.display_name || (actor?.username ? `@${actor.username}` : "Someone");
-    const actorHref = actor?.username ? `/user/${actor.username}` : null;
+  const renderNotification = useCallback(
+    (notification: Notification): NotificationListItem => {
+      const actor = notification.actor_id
+        ? profiles[notification.actor_id]
+        : null;
+      const actorName =
+        actor?.display_name ||
+        (actor?.username ? `@${actor.username}` : "Someone");
+      const actorHref = actor?.username ? `/user/${actor.username}` : null;
 
-    if (notification.type === "follow") {
-      return {
-        href: actorHref ?? "/discover",
-        message: `${actorName} followed you.`,
-        detail: "New connection",
-      };
-    }
+      if (notification.type === "follow") {
+        return {
+          href: actorHref ?? "/discover",
+          message: `${actorName} followed you.`,
+          detail: "New connection",
+        };
+      }
 
-    if (notification.target_type === "post") {
-      const post = posts[notification.target_id];
-      return {
-        href: post ? `/#post-${post.id}` : "/",
-        message: `${actorName} gave Respect to your post.`,
-        detail: post ? snippet(post.content) : "Feed post",
-      };
-    }
+      if (notification.target_type === "post") {
+        const post = posts[notification.target_id];
+        return {
+          href: post ? `/#post-${post.id}` : "/",
+          message: `${actorName} gave Respect to your post.`,
+          detail: post ? snippet(post.content) : "Feed post",
+        };
+      }
 
-    if (notification.target_type === "comment") {
-      const comment = comments[notification.target_id];
+      if (notification.target_type === "comment") {
+        const comment = comments[notification.target_id];
+        return {
+          href: comment
+            ? `/journey/${comment.journey_id}#comments-${comment.journey_update_id}`
+            : "/dashboard",
+          message: `${actorName} commented on your journey update.`,
+          detail: comment ? snippet(comment.body) : "Comment",
+        };
+      }
+
+      if (notification.target_type === "post_comment") {
+        const comment = postComments[notification.target_id];
+        return {
+          href: comment ? `/#post-comments-${comment.post_id}` : "/",
+          message: `${actorName} commented on your feed post.`,
+          detail: comment ? snippet(comment.body) : "Comment",
+        };
+      }
+
+      if (notification.target_type === "circle_checkin") {
+        const checkin = circleCheckins[notification.target_id];
+        const circle = checkin ? circles[checkin.circle_id] : null;
+
+        return {
+          href: circle ? `/circles/${circle.slug}` : "/circles",
+          message: `${actorName} posted a Circle check-in.`,
+          detail: circle
+            ? `${circle.name}: ${snippet(checkin?.body ?? "Check-in")}`
+            : "Circle check-in",
+        };
+      }
+
+      if (notification.target_type === "direct_message") {
+        const message = directMessages[notification.target_id];
+
+        return {
+          href: actor?.username
+            ? `/messages?to=${encodeURIComponent(actor.username)}`
+            : "/messages",
+          message: `${actorName} sent you a direct message.`,
+          detail: message ? snippet(message.body) : "Direct message",
+        };
+      }
+
+      const update = journeyUpdates[notification.target_id];
       return {
-        href: comment
-          ? `/journey/${comment.journey_id}#comments-${comment.journey_update_id}`
+        href: update
+          ? `/journey/${update.journey_id}#comments-${update.id}`
           : "/dashboard",
-        message: `${actorName} commented on your journey update.`,
-        detail: comment ? snippet(comment.body) : "Comment",
+        message: `${actorName} gave Respect to your journey update.`,
+        detail: update ? snippet(update.text) : "Journey update",
       };
-    }
+    },
+    [
+      circleCheckins,
+      circles,
+      comments,
+      directMessages,
+      journeyUpdates,
+      postComments,
+      posts,
+      profiles,
+    ],
+  );
 
-    if (notification.target_type === "post_comment") {
-      const comment = postComments[notification.target_id];
-      return {
-        href: comment ? `/#post-comments-${comment.post_id}` : "/",
-        message: `${actorName} commented on your feed post.`,
-        detail: comment ? snippet(comment.body) : "Comment",
-      };
-    }
+  const activityDigest = useMemo(() => {
+    const groups = new Map<string, DigestGroup>();
 
-    if (notification.target_type === "circle_checkin") {
-      const checkin = circleCheckins[notification.target_id];
-      const circle = checkin ? circles[checkin.circle_id] : null;
+    notifications.forEach((notification) => {
+      const item = renderNotification(notification);
+      const title = digestTitleFor(notification);
+      const currentGroup = groups.get(title);
+      const notificationTime = new Date(notification.created_at).getTime();
+      const currentLatestTime = currentGroup
+        ? new Date(currentGroup.latestAt).getTime()
+        : 0;
+      const isLatest = !currentGroup || notificationTime > currentLatestTime;
 
-      return {
-        href: circle ? `/circles/${circle.slug}` : "/circles",
-        message: `${actorName} posted a Circle check-in.`,
-        detail: circle
-          ? `${circle.name}: ${snippet(checkin?.body ?? "Check-in")}`
-          : "Circle check-in",
-      };
-    }
+      groups.set(title, {
+        key: title,
+        title,
+        href: isLatest ? item.href : currentGroup.href,
+        totalCount: (currentGroup?.totalCount ?? 0) + 1,
+        unreadCount:
+          (currentGroup?.unreadCount ?? 0) + (notification.read_at ? 0 : 1),
+        latestAt: isLatest ? notification.created_at : currentGroup.latestAt,
+        detail: isLatest ? item.detail : currentGroup.detail,
+      });
+    });
 
-    if (notification.target_type === "direct_message") {
-      const message = directMessages[notification.target_id];
-
-      return {
-        href: actor?.username
-          ? `/messages?to=${encodeURIComponent(actor.username)}`
-          : "/messages",
-        message: `${actorName} sent you a direct message.`,
-        detail: message ? snippet(message.body) : "Direct message",
-      };
-    }
-
-    const update = journeyUpdates[notification.target_id];
-    return {
-      href: update
-        ? `/journey/${update.journey_id}#comments-${update.id}`
-        : "/dashboard",
-      message: `${actorName} gave Respect to your journey update.`,
-      detail: update ? snippet(update.text) : "Journey update",
-    };
-  };
+    return Array.from(groups.values()).sort(
+      (a, b) =>
+        new Date(b.latestAt).getTime() - new Date(a.latestAt).getTime(),
+    );
+  }, [notifications, renderNotification]);
 
   const markNotificationRead = async (notification: Notification) => {
     if (notification.read_at !== null) return;
@@ -434,48 +508,81 @@ export default function NotificationsPage() {
           No notifications yet. Respect, follows, comments, and messages will show up here.
         </p>
       ) : (
-        <div className="space-y-3">
-          {notifications.map((notification) => {
-            const item = renderNotification(notification);
-            const isUnread = notification.read_at === null;
-
-            return (
-              <Link
-                key={notification.id}
-                href={item.href}
-                className={`link-panel ${
-                  isUnread
-                    ? "border-[var(--foreground)] bg-[var(--surface-muted)]"
-                    : ""
-                }`}
-                onClick={() => {
-                  void markNotificationRead(notification);
-                }}
-              >
-                <div className="flex items-start gap-3">
-                  <span
-                    className={`mt-1 h-2.5 w-2.5 rounded-full ${
-                      isUnread ? "bg-current" : "bg-transparent"
-                    }`}
-                    aria-hidden="true"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-semibold">{item.message}</p>
-                      <span className="metric-pill text-xs">
-                        {isUnread ? "Unread" : "Read"}
-                      </span>
+        <>
+          <section className="mb-8">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h2 className="section-heading">Activity Digest</h2>
+              <span className="muted text-sm">Latest 50</span>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {activityDigest.map((group) => (
+                <Link key={group.key} href={group.href} className="link-panel">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h3 className="font-semibold">{group.title}</h3>
+                      <p className="muted mt-1 text-sm">{group.detail}</p>
                     </div>
-                    <p className="muted mt-1 text-sm">{item.detail}</p>
-                    <time className="muted mt-3 block text-xs font-semibold uppercase">
-                      {new Date(notification.created_at).toLocaleString()}
-                    </time>
+                    <span className="metric-pill text-xs">
+                      {group.unreadCount > 0
+                        ? `${group.unreadCount} unread`
+                        : "Clear"}
+                    </span>
                   </div>
-                </div>
-              </Link>
-            );
-          })}
-        </div>
+                  <div className="muted mt-3 flex flex-wrap gap-3 text-xs">
+                    <span>
+                      {group.totalCount}{" "}
+                      {group.totalCount === 1 ? "moment" : "moments"}
+                    </span>
+                    <time>{new Date(group.latestAt).toLocaleString()}</time>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </section>
+
+          <div className="space-y-3">
+            {notifications.map((notification) => {
+              const item = renderNotification(notification);
+              const isUnread = notification.read_at === null;
+
+              return (
+                <Link
+                  key={notification.id}
+                  href={item.href}
+                  className={`link-panel ${
+                    isUnread
+                      ? "border-[var(--foreground)] bg-[var(--surface-muted)]"
+                      : ""
+                  }`}
+                  onClick={() => {
+                    void markNotificationRead(notification);
+                  }}
+                >
+                  <div className="flex items-start gap-3">
+                    <span
+                      className={`mt-1 h-2.5 w-2.5 rounded-full ${
+                        isUnread ? "bg-current" : "bg-transparent"
+                      }`}
+                      aria-hidden="true"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-semibold">{item.message}</p>
+                        <span className="metric-pill text-xs">
+                          {isUnread ? "Unread" : "Read"}
+                        </span>
+                      </div>
+                      <p className="muted mt-1 text-sm">{item.detail}</p>
+                      <time className="muted mt-3 block text-xs font-semibold uppercase">
+                        {new Date(notification.created_at).toLocaleString()}
+                      </time>
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </>
       )}
     </main>
   );
