@@ -21,6 +21,8 @@ Required:
 - `NEXT_PUBLIC_SITE_URL`
 - `RESEND_API_KEY` for transactional email
 - `EMAIL_FROM`, for example `Megamorphosis <hello@megamorphosis.com>`
+- `SUPABASE_SERVICE_ROLE_KEY` for server-only scheduled jobs
+- `CRON_SECRET` for Vercel Cron authorization
 
 For production, set `NEXT_PUBLIC_SITE_URL` to:
 
