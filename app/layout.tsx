@@ -57,6 +57,9 @@ export default function RootLayout({
           <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-3 px-5 py-5 text-sm">
             <p className="muted">(c) {new Date().getFullYear()} Megamorphosis</p>
             <div className="flex gap-4">
+              <Link href="/help" className="font-medium">
+                Help
+              </Link>
               <Link href="/launch" className="font-medium">
                 Launch
               </Link>
