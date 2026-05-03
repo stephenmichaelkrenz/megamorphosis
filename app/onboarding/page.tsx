@@ -71,6 +71,10 @@ export default function OnboardingPage() {
       return;
     }
 
+    void fetch("/api/email/welcome", { method: "POST" }).catch(() => {
+      // Email should never block the first-run path.
+    });
+
     router.push("/welcome");
   };
 

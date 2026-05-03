@@ -19,6 +19,8 @@ Required:
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `NEXT_PUBLIC_SITE_URL`
+- `RESEND_API_KEY` for transactional email
+- `EMAIL_FROM`, for example `Megamorphosis <hello@megamorphosis.com>`
 
 For production, set `NEXT_PUBLIC_SITE_URL` to:
 
