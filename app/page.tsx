@@ -9,7 +9,10 @@ import { calculateDailyStreak } from "@/lib/gamification";
 import { supabase } from "@/lib/supabaseClient";
 import {
   emptyTodaySummary,
+  getDaysSince,
+  getRecentActivityStartIso,
   getTodayStartIso,
+  isJourneyStale,
 } from "@/lib/today";
 import type { TodaySummary } from "@/lib/today";
 import { Post } from "@/types";
@@ -250,13 +253,16 @@ export default function HomePage() {
     if (!user) return emptyTodaySummary;
 
     const todayStartIso = getTodayStartIso();
+    const recentActivityStartIso = getRecentActivityStartIso();
 
     const [
       { count: todayPostCount },
       { data: activeJourneys },
-      { count: joinedCircleCount },
+      { data: joinedCircles },
+      { count: followingCount },
       { data: ownCheckins },
       { count: unreadNotificationCount },
+      { count: unreadCommentNotificationCount },
       { count: unreadMessageCount },
     ] = await Promise.all([
       supabase
@@ -273,8 +279,12 @@ export default function HomePage() {
         .order("created_at", { ascending: true }),
       supabase
         .from("circle_members")
-        .select("circle_id", { count: "exact", head: true })
+        .select("circle_id")
         .eq("user_id", user.id),
+      supabase
+        .from("follows")
+        .select("following_id", { count: "exact", head: true })
+        .eq("follower_id", user.id),
       supabase
         .from("circle_checkins")
         .select("created_at")
@@ -285,19 +295,46 @@ export default function HomePage() {
         .eq("recipient_id", user.id)
         .is("read_at", null),
       supabase
+        .from("notifications")
+        .select("id", { count: "exact", head: true })
+        .eq("recipient_id", user.id)
+        .eq("type", "comment")
+        .is("read_at", null),
+      supabase
         .from("direct_messages")
         .select("id", { count: "exact", head: true })
         .eq("recipient_id", user.id)
         .is("read_at", null),
     ]);
 
+    const joinedCircleIds =
+      joinedCircles?.map((membership) => membership.circle_id) ?? [];
     const activeJourneyIds = activeJourneys?.map((journey) => journey.id) ?? [];
-    const { data: journeyUpdates } = activeJourneyIds.length
-      ? await supabase
-          .from("journey_updates")
-          .select("journey_id, created_at")
-          .in("journey_id", activeJourneyIds)
-      : { data: [] };
+    const [
+      { data: journeyUpdates },
+      { data: recentCircleCheckins },
+      { data: circleRows },
+    ] = await Promise.all([
+      activeJourneyIds.length
+        ? supabase
+            .from("journey_updates")
+            .select("journey_id, created_at")
+            .in("journey_id", activeJourneyIds)
+        : { data: [] },
+      joinedCircleIds.length
+        ? supabase
+            .from("circle_checkins")
+            .select("circle_id")
+            .in("circle_id", joinedCircleIds)
+            .gte("created_at", recentActivityStartIso)
+        : { data: [] },
+      joinedCircleIds.length
+        ? supabase
+            .from("circles")
+            .select("id, name, slug")
+            .in("id", joinedCircleIds)
+        : { data: [] },
+    ]);
 
     const latestUpdateByJourneyId = new Map<string, string | null>();
     journeyUpdates?.forEach((update) => {
@@ -319,8 +356,14 @@ export default function HomePage() {
           id: journey.id,
           title: journey.title,
           lastUpdatedAt: latestUpdateByJourneyId.get(journey.id) ?? null,
+          daysSinceLastUpdate: getDaysSince(
+            latestUpdateByJourneyId.get(journey.id) ?? null,
+          ),
+          isStale: isJourneyStale(latestUpdateByJourneyId.get(journey.id) ?? null),
         }))
         .sort((a, b) => {
+          if (a.isStale && !b.isStale) return -1;
+          if (!a.isStale && b.isStale) return 1;
           if (!a.lastUpdatedAt && b.lastUpdatedAt) return -1;
           if (a.lastUpdatedAt && !b.lastUpdatedAt) return 1;
           return (
@@ -328,15 +371,36 @@ export default function HomePage() {
             new Date(b.lastUpdatedAt ?? 0).getTime()
           );
         })[0] ?? null;
+    const circleActivityCounts = new Map<string, number>();
+
+    recentCircleCheckins?.forEach((checkin) => {
+      circleActivityCounts.set(
+        checkin.circle_id,
+        (circleActivityCounts.get(checkin.circle_id) ?? 0) + 1,
+      );
+    });
+
+    const recentCircleActivity =
+      circleRows
+        ?.map((circle) => ({
+          name: circle.name,
+          slug: circle.slug,
+          activityCount: circleActivityCounts.get(circle.id) ?? 0,
+        }))
+        .filter((circle) => circle.activityCount > 0)
+        .sort((a, b) => b.activityCount - a.activityCount)[0] ?? null;
 
     return {
       hasCheckedInToday: (todayPostCount ?? 0) > 0,
       journeyPrompt,
-      joinedCircleCount: joinedCircleCount ?? 0,
+      joinedCircleCount: joinedCircleIds.length,
+      followingCount: followingCount ?? 0,
       circleCheckinStreak: calculateDailyStreak(
         ownCheckins?.map((checkin) => checkin.created_at) ?? [],
       ),
+      recentCircleActivity,
       unreadNotificationCount: unreadNotificationCount ?? 0,
+      unreadCommentNotificationCount: unreadCommentNotificationCount ?? 0,
       unreadMessageCount: unreadMessageCount ?? 0,
     };
   };

@@ -13,7 +13,10 @@ import { achievementLabels, calculateDailyStreak } from "@/lib/gamification";
 import { supabase } from "@/lib/supabaseClient";
 import {
   emptyTodaySummary,
+  getDaysSince,
+  getRecentActivityStartIso,
   getTodayStartIso,
+  isJourneyStale,
 } from "@/lib/today";
 import type { TodaySummary } from "@/lib/today";
 import {
@@ -104,6 +107,7 @@ export default function Dashboard() {
         { data: journeysData },
         { data: postsData },
         { data: membershipsData },
+        { count: followingCount },
       ] = await Promise.all([
         supabase
           .from("profiles")
@@ -125,6 +129,10 @@ export default function Dashboard() {
           .from("circle_members")
           .select("circle_id")
           .eq("user_id", user.id),
+        supabase
+          .from("follows")
+          .select("following_id", { count: "exact", head: true })
+          .eq("follower_id", user.id),
       ]);
 
       const journeyRows = journeysData ?? [];
@@ -148,6 +156,7 @@ export default function Dashboard() {
         { data: allPostRows },
         { count: todayPostCount },
         { count: unreadNotificationCount },
+        { count: unreadCommentNotificationCount },
         { count: unreadMessageCount },
       ] = await Promise.all([
         journeyIds.length
@@ -211,6 +220,12 @@ export default function Dashboard() {
           .from("notifications")
           .select("id", { count: "exact", head: true })
           .eq("recipient_id", user.id)
+          .is("read_at", null),
+        supabase
+          .from("notifications")
+          .select("id", { count: "exact", head: true })
+          .eq("recipient_id", user.id)
+          .eq("type", "comment")
           .is("read_at", null),
         supabase
           .from("direct_messages")
@@ -318,6 +333,21 @@ export default function Dashboard() {
           (circleActivityCounts.get(checkin.circle_id) ?? 0) + 1,
         );
       });
+      const recentActivityStart = new Date(getRecentActivityStartIso()).getTime();
+      const recentCircleActivity =
+        circleRows
+          ?.map((circle) => ({
+            name: circle.name,
+            slug: circle.slug,
+            activityCount:
+              checkinRows?.filter(
+                (checkin) =>
+                  checkin.circle_id === circle.id &&
+                  new Date(checkin.created_at).getTime() >= recentActivityStart,
+              ).length ?? 0,
+          }))
+          .filter((circle) => circle.activityCount > 0)
+          .sort((a, b) => b.activityCount - a.activityCount)[0] ?? null;
 
       setProfile(profileData);
       setJourneys(journeyRows);
@@ -373,8 +403,16 @@ export default function Dashboard() {
             id: journey.id,
             title: journey.title,
             lastUpdatedAt: latestUpdateByJourneyId.get(journey.id) ?? null,
+            daysSinceLastUpdate: getDaysSince(
+              latestUpdateByJourneyId.get(journey.id) ?? null,
+            ),
+            isStale: isJourneyStale(
+              latestUpdateByJourneyId.get(journey.id) ?? null,
+            ),
           }))
           .sort((a, b) => {
+            if (a.isStale && !b.isStale) return -1;
+            if (!a.isStale && b.isStale) return 1;
             if (!a.lastUpdatedAt && b.lastUpdatedAt) return -1;
             if (a.lastUpdatedAt && !b.lastUpdatedAt) return 1;
             return (
@@ -389,8 +427,11 @@ export default function Dashboard() {
         hasCheckedInToday: (todayPostCount ?? 0) > 0,
         journeyPrompt,
         joinedCircleCount: joinedCircleIds.length,
+        followingCount: followingCount ?? 0,
         circleCheckinStreak: nextCircleCheckinStreak,
+        recentCircleActivity,
         unreadNotificationCount: unreadNotificationCount ?? 0,
+        unreadCommentNotificationCount: unreadCommentNotificationCount ?? 0,
         unreadMessageCount: unreadMessageCount ?? 0,
       });
       setAchievementBadges(

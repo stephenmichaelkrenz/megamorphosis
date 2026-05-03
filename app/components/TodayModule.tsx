@@ -13,6 +13,14 @@ const getPrimaryAction = (summary: TodaySummary) => {
     };
   }
 
+  if (summary.unreadCommentNotificationCount > 0) {
+    return {
+      href: "/notifications",
+      label: "Reply to Comments",
+      note: `${formatCount(summary.unreadCommentNotificationCount, "comment")} waiting`,
+    };
+  }
+
   if (summary.unreadNotificationCount > 0) {
     return {
       href: "/notifications",
@@ -32,8 +40,24 @@ const getPrimaryAction = (summary: TodaySummary) => {
   if (summary.journeyPrompt) {
     return {
       href: `/journey/${summary.journeyPrompt.id}`,
-      label: "Update Journey",
+      label: summary.journeyPrompt.isStale ? "Revive Journey" : "Update Journey",
       note: summary.journeyPrompt.title,
+    };
+  }
+
+  if (summary.recentCircleActivity) {
+    return {
+      href: `/circles/${summary.recentCircleActivity.slug}`,
+      label: "Check Circle",
+      note: `${summary.recentCircleActivity.name} is active`,
+    };
+  }
+
+  if (summary.joinedCircleCount === 0 || summary.followingCount < 3) {
+    return {
+      href: summary.joinedCircleCount === 0 ? "/circles" : "/discover",
+      label: summary.joinedCircleCount === 0 ? "Join a Circle" : "Follow People",
+      note: "Build the first layer of your network",
     };
   }
 
@@ -50,6 +74,33 @@ const getPrimaryAction = (summary: TodaySummary) => {
     label: "Find People",
     note: "Follow builders to shape your feed",
   };
+};
+
+const getJourneyCopy = (summary: TodaySummary) => {
+  if (!summary.journeyPrompt) return "No active Journey needs a nudge.";
+
+  if (!summary.journeyPrompt.isStale) return summary.journeyPrompt.title;
+
+  if (summary.journeyPrompt.daysSinceLastUpdate === null) {
+    return `${summary.journeyPrompt.title} needs its first update.`;
+  }
+
+  return `${summary.journeyPrompt.title} is ${formatCount(
+    summary.journeyPrompt.daysSinceLastUpdate,
+    "day",
+  )} quiet.`;
+};
+
+const getCircleCopy = (summary: TodaySummary) => {
+  if (summary.recentCircleActivity) {
+    return `${summary.recentCircleActivity.name} has new activity.`;
+  }
+
+  if (summary.joinedCircleCount > 0) {
+    return `${formatCount(summary.joinedCircleCount, "Circle")} joined.`;
+  }
+
+  return "Join a Circle to start this loop.";
 };
 
 export default function TodayModule({ summary }: { summary: TodaySummary }) {
@@ -88,23 +139,17 @@ export default function TodayModule({ summary }: { summary: TodaySummary }) {
             {summary.journeyPrompt ? "Ready" : "Clear"}
           </span>
           <h3 className="mt-3 font-semibold">Journey</h3>
-          <p className="muted mt-1 text-sm">
-            {summary.journeyPrompt
-              ? summary.journeyPrompt.title
-              : "No active Journey needs a nudge."}
-          </p>
+          <p className="muted mt-1 text-sm">{getJourneyCopy(summary)}</p>
         </div>
 
         <div>
           <span className="metric-pill text-xs">
-            {formatCount(summary.circleCheckinStreak, "day")}
+            {summary.recentCircleActivity
+              ? `${summary.recentCircleActivity.activityCount} recent`
+              : formatCount(summary.circleCheckinStreak, "day")}
           </span>
           <h3 className="mt-3 font-semibold">Circle Streak</h3>
-          <p className="muted mt-1 text-sm">
-            {summary.joinedCircleCount > 0
-              ? `${formatCount(summary.joinedCircleCount, "Circle")} joined.`
-              : "Join a Circle to start this loop."}
-          </p>
+          <p className="muted mt-1 text-sm">{getCircleCopy(summary)}</p>
         </div>
 
         <div>
