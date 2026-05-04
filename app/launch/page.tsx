@@ -33,6 +33,14 @@ const demoBeats = [
   "Email brings users back only when meaningful activity is unread",
 ];
 
+const cohortSteps = [
+  "Invite 10-15 people who are actively changing something specific",
+  "Ask each person to create one Journey and post three check-ins in seven days",
+  "Seed two or three Circles that match real goals in the cohort",
+  "Check moderation, comments, DMs, and email logs daily during the first week",
+  "Interview the best five users about what pulled them back or made them drift",
+];
+
 export default function LaunchPage() {
   return (
     <main className="page-shell">
@@ -66,6 +74,15 @@ export default function LaunchPage() {
         <h2 className="mb-3 text-lg font-semibold">Demo Path</h2>
         <ol className="list-inside list-decimal space-y-2 text-sm">
           {demoBeats.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ol>
+      </section>
+
+      <section className="panel mb-5">
+        <h2 className="mb-3 text-lg font-semibold">First Cohort Plan</h2>
+        <ol className="list-inside list-decimal space-y-2 text-sm">
+          {cohortSteps.map((item) => (
             <li key={item}>{item}</li>
           ))}
         </ol>
