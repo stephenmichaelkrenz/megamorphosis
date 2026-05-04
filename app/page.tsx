@@ -511,7 +511,7 @@ export default function HomePage() {
           </div>
         )}
 
-        <div className="panel mt-6">
+        <div className="panel accent-panel mt-6">
           <strong>Build visible momentum through proof, support, and reflection.</strong>
         </div>
       </section>
@@ -519,21 +519,26 @@ export default function HomePage() {
       {!loading && !currentUserId && (
         <section className="mb-8 grid gap-3 sm:grid-cols-3">
           <div className="panel text-left">
-            <h2 className="font-semibold">Track the change</h2>
+            <span className="metric-pill metric-pill-success text-xs">Momentum</span>
+            <h2 className="mt-3 font-semibold">Track the change</h2>
             <p className="muted mt-2 text-sm">
               Turn goals into public or private Journeys with updates and
               milestones.
             </p>
           </div>
           <div className="panel text-left">
-            <h2 className="font-semibold">Share the proof</h2>
+            <span className="metric-pill metric-pill-proof text-xs">Proof</span>
+            <h2 className="mt-3 font-semibold">Share the proof</h2>
             <p className="muted mt-2 text-sm">
               Post check-ins, earn Respect, and let progress compound in the
               feed.
             </p>
           </div>
           <div className="panel text-left">
-            <h2 className="font-semibold">Find your circle</h2>
+            <span className="metric-pill metric-pill-connection text-xs">
+              Connection
+            </span>
+            <h2 className="mt-3 font-semibold">Find your circle</h2>
             <p className="muted mt-2 text-sm">
               Join focused Circles and follow people building alongside you.
             </p>

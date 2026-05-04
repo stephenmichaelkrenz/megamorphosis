@@ -7,6 +7,11 @@
   --surface-muted: #f0f0eb;
   --border: #deded6;
   --muted: #6f6f66;
+  --accent-momentum: #2f7d5b;
+  --accent-attention: #b7791f;
+  --accent-connection: #2f6f9f;
+  --accent-proof: #7a5cbe;
+  --accent-danger: #b42318;
 }
 
 @theme inline {
@@ -24,6 +29,11 @@
     --surface-muted: #22221e;
     --border: #383830;
     --muted: #aaa99f;
+    --accent-momentum: #66c294;
+    --accent-attention: #e4b456;
+    --accent-connection: #74b4e8;
+    --accent-proof: #b6a0f2;
+    --accent-danger: #f1847a;
   }
 }
 
@@ -82,6 +92,11 @@ textarea {
 
 .link-panel:hover {
   border-color: var(--foreground);
+}
+
+.accent-panel {
+  border-color: color-mix(in srgb, var(--accent-proof) 32%, var(--border));
+  background: color-mix(in srgb, var(--accent-proof) 5%, var(--surface));
 }
 
 .field {
@@ -154,6 +169,30 @@ textarea {
   border-radius: 6px;
   padding: 0.5rem 0.75rem;
   font-size: 0.875rem;
+}
+
+.metric-pill-success {
+  border-color: color-mix(in srgb, var(--accent-momentum) 55%, var(--border));
+  background: color-mix(in srgb, var(--accent-momentum) 12%, var(--surface));
+  color: color-mix(in srgb, var(--accent-momentum) 76%, var(--foreground));
+}
+
+.metric-pill-attention {
+  border-color: color-mix(in srgb, var(--accent-attention) 55%, var(--border));
+  background: color-mix(in srgb, var(--accent-attention) 13%, var(--surface));
+  color: color-mix(in srgb, var(--accent-attention) 74%, var(--foreground));
+}
+
+.metric-pill-connection {
+  border-color: color-mix(in srgb, var(--accent-connection) 55%, var(--border));
+  background: color-mix(in srgb, var(--accent-connection) 11%, var(--surface));
+  color: color-mix(in srgb, var(--accent-connection) 76%, var(--foreground));
+}
+
+.metric-pill-proof {
+  border-color: color-mix(in srgb, var(--accent-proof) 55%, var(--border));
+  background: color-mix(in srgb, var(--accent-proof) 11%, var(--surface));
+  color: color-mix(in srgb, var(--accent-proof) 76%, var(--foreground));
 }
 
 .notice {

@@ -105,6 +105,25 @@ const getCircleCopy = (summary: TodaySummary) => {
 
 export default function TodayModule({ summary }: { summary: TodaySummary }) {
   const action = getPrimaryAction(summary);
+  const checkInPillClass = summary.hasCheckedInToday
+    ? "metric-pill metric-pill-success text-xs"
+    : "metric-pill metric-pill-attention text-xs";
+  const journeyPillClass = summary.journeyPrompt?.isStale
+    ? "metric-pill metric-pill-attention text-xs"
+    : summary.journeyPrompt
+      ? "metric-pill metric-pill-proof text-xs"
+      : "metric-pill text-xs";
+  const circlePillClass = summary.recentCircleActivity
+    ? "metric-pill metric-pill-connection text-xs"
+    : summary.circleCheckinStreak > 0
+      ? "metric-pill metric-pill-success text-xs"
+      : "metric-pill text-xs";
+  const inboxCount =
+    summary.unreadNotificationCount + summary.unreadMessageCount;
+  const inboxPillClass =
+    inboxCount > 0
+      ? "metric-pill metric-pill-connection text-xs"
+      : "metric-pill text-xs";
 
   return (
     <section className="panel mb-8">
@@ -123,7 +142,7 @@ export default function TodayModule({ summary }: { summary: TodaySummary }) {
 
       <div className="grid gap-3 md:grid-cols-4">
         <div>
-          <span className="metric-pill text-xs">
+          <span className={checkInPillClass}>
             {summary.hasCheckedInToday ? "Done" : "Open"}
           </span>
           <h3 className="mt-3 font-semibold">Check-In</h3>
@@ -135,7 +154,7 @@ export default function TodayModule({ summary }: { summary: TodaySummary }) {
         </div>
 
         <div>
-          <span className="metric-pill text-xs">
+          <span className={journeyPillClass}>
             {summary.journeyPrompt ? "Ready" : "Clear"}
           </span>
           <h3 className="mt-3 font-semibold">Journey</h3>
@@ -143,7 +162,7 @@ export default function TodayModule({ summary }: { summary: TodaySummary }) {
         </div>
 
         <div>
-          <span className="metric-pill text-xs">
+          <span className={circlePillClass}>
             {summary.recentCircleActivity
               ? `${summary.recentCircleActivity.activityCount} recent`
               : formatCount(summary.circleCheckinStreak, "day")}
@@ -153,9 +172,7 @@ export default function TodayModule({ summary }: { summary: TodaySummary }) {
         </div>
 
         <div>
-          <span className="metric-pill text-xs">
-            {summary.unreadNotificationCount + summary.unreadMessageCount}
-          </span>
+          <span className={inboxPillClass}>{inboxCount}</span>
           <h3 className="mt-3 font-semibold">Inbox</h3>
           <p className="muted mt-1 text-sm">{action.note}</p>
         </div>

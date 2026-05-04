@@ -6,6 +6,12 @@ const visibilityLabels: Record<JourneyVisibility, string> = {
   private: "Private",
 };
 
+const visibilityClasses: Record<JourneyVisibility, string> = {
+  public: "metric-pill metric-pill-connection",
+  unlisted: "metric-pill metric-pill-attention",
+  private: "metric-pill metric-pill-proof",
+};
+
 export default function JourneyVisibilityBadge({
   visibility,
 }: {
@@ -17,7 +23,7 @@ export default function JourneyVisibilityBadge({
       : "public";
 
   return (
-    <span className="metric-pill">
+    <span className={visibilityClasses[safeVisibility]}>
       <span className="muted">Visibility</span>
       <span className="ml-2 font-semibold">
         {visibilityLabels[safeVisibility]}

@@ -79,7 +79,7 @@ export default function RespectButton({
     <button
       onClick={toggleRespect}
       disabled={saving}
-      className={respected ? "btn-secondary" : "btn-primary"}
+      className={respected ? "btn-secondary metric-pill-success" : "btn-primary"}
     >
       {respected ? "Respected" : "Respect"} ({count})
     </button>
