@@ -7,6 +7,13 @@ const siteUrl = new URL(
   process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.megamorphosis.com",
 );
 
+const previewImage = {
+  url: "/opengraph-image",
+  width: 1200,
+  height: 630,
+  alt: "Megamorphosis - Track your transformation",
+};
+
 export const metadata: Metadata = {
   metadataBase: siteUrl,
   title: {
@@ -34,12 +41,14 @@ export const metadata: Metadata = {
     title: "Megamorphosis",
     description:
       "Track your transformation, share proof of progress, and follow people building real momentum.",
+    images: [previewImage],
   },
   twitter: {
     card: "summary_large_image",
     title: "Megamorphosis",
     description:
       "Track your transformation, share proof of progress, and follow people building real momentum.",
+    images: [previewImage],
   },
 };
 
