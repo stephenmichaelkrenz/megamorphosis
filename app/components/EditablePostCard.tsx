@@ -3,6 +3,7 @@
 import { ReactNode, useState } from "react";
 import PostComments from "@/components/PostComments";
 import RespectButton from "@/components/RespectButton";
+import { ReactionCounts, ReactionType } from "@/lib/reactions";
 import { supabase } from "@/lib/supabaseClient";
 import { Post } from "@/types";
 
@@ -12,6 +13,8 @@ type EditablePost = Pick<
 > & {
   respect_count: number;
   respected_by_me: boolean;
+  reaction_counts?: ReactionCounts;
+  reacted_by_me?: ReactionType[];
   comment_count?: number;
 };
 
@@ -119,6 +122,8 @@ export default function EditablePostCard({
               currentUserId={currentUserId}
               initialCount={post.respect_count}
               initiallyRespected={post.respected_by_me}
+              initialReactionCounts={post.reaction_counts}
+              initiallyReactedTypes={post.reacted_by_me}
             />
 
             {canEdit && (

@@ -32,6 +32,8 @@ export type Profile = Tables<"profiles">;
 
 export type Respect = Tables<"respects">;
 
+export type ReactionType = "respect" | "inspired" | "same" | "keep_going";
+
 export type RespectTargetType = "post" | "journey_update";
 
 export type Notification = Tables<"notifications"> & {
