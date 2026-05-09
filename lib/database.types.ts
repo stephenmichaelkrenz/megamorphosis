@@ -758,6 +758,7 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          reaction_type: string
           target_id: string
           target_type: string
           user_id: string
@@ -765,6 +766,7 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          reaction_type?: string
           target_id: string
           target_type: string
           user_id: string
@@ -772,6 +774,7 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          reaction_type?: string
           target_id?: string
           target_type?: string
           user_id?: string

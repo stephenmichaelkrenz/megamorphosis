@@ -9,7 +9,13 @@ import JourneyVisibilityBadge from "@/components/JourneyVisibilityBadge";
 import MilestoneProgressBadge from "@/components/MilestoneProgressBadge";
 import ProBadge from "@/components/ProBadge";
 import TodayModule from "@/components/TodayModule";
+import { getCheckInFocus, getDailyFocusAreas } from "@/lib/dailyCheckIn";
 import { achievementLabels, calculateDailyStreak } from "@/lib/gamification";
+import {
+  ReactionCounts,
+  ReactionType,
+  emptyReactionCounts,
+} from "@/lib/reactions";
 import { supabase } from "@/lib/supabaseClient";
 import {
   emptyTodaySummary,
@@ -29,8 +35,16 @@ import {
 } from "@/types";
 
 type DashboardPost = Post & {
+  profile?: {
+    username: string | null;
+    display_name: string | null;
+  };
   respect_count: number;
   respected_by_me: boolean;
+  reaction_counts: ReactionCounts;
+  reacted_by_me: ReactionType[];
+  comment_count: number;
+  focus: string | null;
 };
 
 type DashboardProfile = {
@@ -66,6 +80,20 @@ type WeeklyRecap = {
   circleCheckins: number;
 };
 
+type ActivityMoment = {
+  id: string;
+  href: string;
+  message: string;
+  detail: string;
+  created_at: string;
+  unread: boolean;
+};
+
+type RewardMoment = {
+  title: string;
+  detail: string;
+};
+
 export default function Dashboard() {
   const [journeys, setJourneys] = useState<Journey[]>([]);
   const [milestones, setMilestones] = useState<JourneyMilestone[]>([]);
@@ -73,6 +101,7 @@ export default function Dashboard() {
   const [circles, setCircles] = useState<DashboardCircle[]>([]);
   const [checkins, setCheckins] = useState<DashboardCheckin[]>([]);
   const [posts, setPosts] = useState<DashboardPost[]>([]);
+  const [activityMoments, setActivityMoments] = useState<ActivityMoment[]>([]);
   const [profile, setProfile] = useState<DashboardProfile | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [journeyStreak, setJourneyStreak] = useState(0);
@@ -86,6 +115,8 @@ export default function Dashboard() {
   const [todaySummary, setTodaySummary] =
     useState<TodaySummary>(emptyTodaySummary);
   const [newPost, setNewPost] = useState("");
+  const [selectedFocus, setSelectedFocus] = useState("All");
+  const [rewardMoment, setRewardMoment] = useState<RewardMoment | null>(null);
   const [posting, setPosting] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -105,9 +136,8 @@ export default function Dashboard() {
       const [
         { data: profileData },
         { data: journeysData },
-        { data: postsData },
         { data: membershipsData },
-        { count: followingCount },
+        { data: followsData, count: followingCount },
       ] = await Promise.all([
         supabase
           .from("profiles")
@@ -120,24 +150,21 @@ export default function Dashboard() {
           .eq("user_id", user.id)
           .order("created_at", { ascending: false }),
         supabase
-          .from("posts")
-          .select("id, user_id, content, created_at, updated_at")
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false })
-          .limit(5),
-        supabase
           .from("circle_members")
           .select("circle_id")
           .eq("user_id", user.id),
         supabase
           .from("follows")
-          .select("following_id", { count: "exact", head: true })
+          .select("following_id", { count: "exact" })
           .eq("follower_id", user.id),
       ]);
 
       const journeyRows = journeysData ?? [];
       const joinedCircleIds =
         membershipsData?.map((membership) => membership.circle_id) ?? [];
+      const followingIds =
+        followsData?.map((follow) => follow.following_id) ?? [];
+      const visibleUserIds = Array.from(new Set([user.id, ...followingIds]));
       const activeJourneyRows = journeyRows.filter(
         (journey) => !journey.archived_at && journey.status === "active",
       );
@@ -154,10 +181,12 @@ export default function Dashboard() {
         { data: ownCheckinRows },
         { data: allUpdateRows },
         { data: allPostRows },
+        { data: postsData },
         { count: todayPostCount },
         { count: unreadNotificationCount },
         { count: unreadCommentNotificationCount },
         { count: unreadMessageCount },
+        { data: notificationRows },
       ] = await Promise.all([
         journeyIds.length
           ? supabase
@@ -213,6 +242,12 @@ export default function Dashboard() {
         supabase.from("posts").select("created_at").eq("user_id", user.id),
         supabase
           .from("posts")
+          .select("id, user_id, content, created_at, updated_at")
+          .in("user_id", visibleUserIds)
+          .order("created_at", { ascending: false })
+          .limit(12),
+        supabase
+          .from("posts")
           .select("id", { count: "exact", head: true })
           .eq("user_id", user.id)
           .gte("created_at", getTodayStartIso()),
@@ -232,6 +267,12 @@ export default function Dashboard() {
           .select("id", { count: "exact", head: true })
           .eq("recipient_id", user.id)
           .is("read_at", null),
+        supabase
+          .from("notifications")
+          .select("id, actor_id, type, target_type, target_id, read_at, created_at")
+          .eq("recipient_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(6),
       ]);
 
       const checkinUserIds = Array.from(
@@ -269,26 +310,116 @@ export default function Dashboard() {
       ]);
 
       const postIds = postsData?.map((post) => post.id) ?? [];
-      const { data: respects } = postIds.length
-        ? await supabase
-            .from("respects")
-            .select("user_id, target_id")
-            .eq("target_type", "post")
-            .in("target_id", postIds)
-        : { data: [] };
+      const activityActorIds = Array.from(
+        new Set(
+          notificationRows
+            ?.map((notification) => notification.actor_id)
+            .filter((actorId): actorId is string => Boolean(actorId)) ?? [],
+        ),
+      );
+      const activityPostIds =
+        notificationRows
+          ?.filter((notification) => notification.target_type === "post")
+          .map((notification) => notification.target_id) ?? [];
+      const activityUpdateIds =
+        notificationRows
+          ?.filter((notification) => notification.target_type === "journey_update")
+          .map((notification) => notification.target_id) ?? [];
+      const postUserIds = Array.from(
+        new Set(
+          postsData
+            ?.map((post) => post.user_id)
+            .filter((postUserId): postUserId is string => Boolean(postUserId)) ??
+            [],
+        ),
+      );
+      const [
+        { data: postProfiles },
+        { data: respects },
+        { data: comments },
+        { data: activityProfiles },
+        { data: activityPosts },
+        { data: activityUpdates },
+      ] = await Promise.all([
+          postUserIds.length
+            ? supabase
+                .from("profiles")
+                .select("id, username, display_name")
+                .in("id", postUserIds)
+            : Promise.resolve({ data: [] }),
+          postIds.length
+            ? supabase
+                .from("respects")
+                .select("user_id, target_id, reaction_type")
+                .eq("target_type", "post")
+                .in("target_id", postIds)
+            : Promise.resolve({ data: [] }),
+          postIds.length
+            ? supabase
+                .from("post_comments")
+                .select("post_id")
+                .in("post_id", postIds)
+                .is("deleted_at", null)
+                .is("hidden_at", null)
+            : Promise.resolve({ data: [] }),
+          activityActorIds.length
+            ? supabase
+                .from("profiles")
+                .select("id, username, display_name")
+                .in("id", activityActorIds)
+            : Promise.resolve({ data: [] }),
+          activityPostIds.length
+            ? supabase
+                .from("posts")
+                .select("id, content")
+                .in("id", activityPostIds)
+            : Promise.resolve({ data: [] }),
+          activityUpdateIds.length
+            ? supabase
+                .from("journey_updates")
+                .select("id, journey_id, text")
+                .in("id", activityUpdateIds)
+            : Promise.resolve({ data: [] }),
+        ]);
 
       const respectCounts = new Map<string, number>();
       const respectedByMe = new Set<string>();
+      const reactionCounts = new Map<string, ReactionCounts>();
+      const reactedByMe = new Map<string, ReactionType[]>();
+      const commentCounts = new Map<string, number>();
 
       respects?.forEach((respect) => {
+        const reactionType = (respect.reaction_type ?? "respect") as ReactionType;
+        const currentCounts = reactionCounts.get(respect.target_id) ?? {
+          ...emptyReactionCounts(),
+        };
+
+        currentCounts[reactionType] = (currentCounts[reactionType] ?? 0) + 1;
+        reactionCounts.set(respect.target_id, currentCounts);
         respectCounts.set(
           respect.target_id,
-          (respectCounts.get(respect.target_id) ?? 0) + 1,
+          (respectCounts.get(respect.target_id) ?? 0) +
+            (reactionType === "respect" ? 1 : 0),
         );
 
         if (respect.user_id === user.id) {
-          respectedByMe.add(respect.target_id);
+          const currentReactions = reactedByMe.get(respect.target_id) ?? [];
+          reactedByMe.set(respect.target_id, [
+            ...currentReactions,
+            reactionType,
+          ]);
+
+          if (reactionType === "respect") {
+            respectedByMe.add(respect.target_id);
+          }
         }
+      });
+
+      comments?.forEach((comment) => {
+        commentCounts.set(
+          comment.post_id,
+          (commentCounts.get(comment.post_id) ?? 0) + 1,
+        );
       });
 
       const circleMemberCounts = new Map<string, number>();
@@ -372,9 +503,85 @@ export default function Dashboard() {
       setPosts(
         postsData?.map((post) => ({
           ...post,
+          profile: postProfiles?.find((profile) => profile.id === post.user_id),
           respect_count: respectCounts.get(post.id) ?? 0,
           respected_by_me: respectedByMe.has(post.id),
+          reaction_counts: reactionCounts.get(post.id) ?? emptyReactionCounts(),
+          reacted_by_me: reactedByMe.get(post.id) ?? [],
+          comment_count: commentCounts.get(post.id) ?? 0,
+          focus: getCheckInFocus(post.content),
         })) ?? [],
+      );
+      const activityProfilesById = new Map(
+        activityProfiles?.map((actor) => [actor.id, actor]) ?? [],
+      );
+      const activityPostsById = new Map(
+        activityPosts?.map((post) => [post.id, post]) ?? [],
+      );
+      const activityUpdatesById = new Map(
+        activityUpdates?.map((update) => [update.id, update]) ?? [],
+      );
+
+      setActivityMoments(
+        notificationRows?.map((notification) => {
+          const actor = notification.actor_id
+            ? activityProfilesById.get(notification.actor_id)
+            : null;
+          const actorName =
+            actor?.display_name ||
+            (actor?.username ? `@${actor.username}` : "Someone");
+
+          if (notification.target_type === "post") {
+            const post = activityPostsById.get(notification.target_id);
+
+            return {
+              id: notification.id,
+              href: post ? `/#post-${post.id}` : "/notifications",
+              message:
+                notification.type === "respect"
+                  ? `${actorName} reacted to your post.`
+                  : `${actorName} interacted with your post.`,
+              detail: post?.content ?? "Feed post",
+              created_at: notification.created_at,
+              unread: notification.read_at === null,
+            };
+          }
+
+          if (notification.target_type === "journey_update") {
+            const update = activityUpdatesById.get(notification.target_id);
+
+            return {
+              id: notification.id,
+              href: update
+                ? `/journey/${update.journey_id}#comments-${update.id}`
+                : "/notifications",
+              message: `${actorName} reacted to your journey update.`,
+              detail: update?.text ?? "Journey update",
+              created_at: notification.created_at,
+              unread: notification.read_at === null,
+            };
+          }
+
+          if (notification.type === "follow") {
+            return {
+              id: notification.id,
+              href: actor?.username ? `/user/${actor.username}` : "/discover",
+              message: `${actorName} followed you.`,
+              detail: "New connection",
+              created_at: notification.created_at,
+              unread: notification.read_at === null,
+            };
+          }
+
+          return {
+            id: notification.id,
+            href: "/notifications",
+            message: `${actorName} created activity for you.`,
+            detail: "Open notifications",
+            created_at: notification.created_at,
+            unread: notification.read_at === null,
+          };
+        }) ?? [],
       );
       const nextJourneyStreak = calculateDailyStreak(
         allUpdateRows?.map((update) => update.created_at) ?? [],
@@ -468,7 +675,9 @@ export default function Dashboard() {
   const updateSavedPost = (savedPost: Post) => {
     setPosts((currentPosts) =>
       currentPosts.map((post) =>
-        post.id === savedPost.id ? { ...post, ...savedPost } : post,
+        post.id === savedPost.id
+          ? { ...post, ...savedPost, focus: getCheckInFocus(savedPost.content) }
+          : post,
       ),
     );
   };
@@ -496,11 +705,29 @@ export default function Dashboard() {
     }
 
     setPosts((currentPosts) => [
-      { ...data, respect_count: 0, respected_by_me: false },
+      {
+        ...data,
+        ...(profile ? { profile } : {}),
+        respect_count: 0,
+        respected_by_me: false,
+        reaction_counts: emptyReactionCounts(),
+        reacted_by_me: [],
+        comment_count: 0,
+        focus: getCheckInFocus(data.content),
+      },
       ...currentPosts,
     ]);
     setTodaySummary((summary) => ({ ...summary, hasCheckedInToday: true }));
     setWeeklyRecap((recap) => ({ ...recap, posts: recap.posts + 1 }));
+    const focus = getCheckInFocus(data.content);
+    setRewardMoment({
+      title: focus
+        ? `${focus} proof posted. Momentum banked.`
+        : "Proof posted. Momentum banked.",
+      detail: focus
+        ? `Your ${focus} lane has a fresh signal, and today's progress loop is closed.`
+        : "Your check-in is now visible in the feed, and today's progress loop is closed.",
+    });
     setNewPost("");
     setPosting(false);
   };
@@ -543,6 +770,44 @@ export default function Dashboard() {
       total: journeyMilestones.length,
     };
   };
+  const focusAreas = ["All", ...getDailyFocusAreas()];
+  const filteredPosts =
+    selectedFocus === "All"
+      ? posts
+      : posts.filter((post) => post.focus === selectedFocus);
+  const communityPostCount = posts.filter(
+    (post) => post.user_id !== currentUserId,
+  ).length;
+  const totalCommunitySignals =
+    posts.reduce(
+      (total, post) =>
+        total +
+        Object.values(post.reaction_counts).reduce(
+          (reactionTotal, count) => reactionTotal + (count ?? 0),
+          0,
+        ) +
+        post.comment_count,
+      0,
+    ) + checkins.length;
+  const laneSummaries = focusAreas.slice(1).map((focus) => {
+    const lanePosts = posts.filter((post) => post.focus === focus);
+    const laneSignals = lanePosts.reduce(
+      (total, post) =>
+        total +
+        Object.values(post.reaction_counts).reduce(
+          (reactionTotal, count) => reactionTotal + (count ?? 0),
+          0,
+        ) +
+        post.comment_count,
+      0,
+    );
+
+    return {
+      focus,
+      posts: lanePosts.length,
+      signals: laneSignals,
+    };
+  });
 
   return (
     <main className="wide-shell">
@@ -569,6 +834,182 @@ export default function Dashboard() {
         </div>
       </section>
 
+      <section className="mb-8">
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="muted text-xs font-semibold uppercase">
+              Community Pulse
+            </p>
+            <h2 className="section-heading">Updates from your people</h2>
+          </div>
+          <Link href="/" className="text-sm font-semibold">
+            Full Feed
+          </Link>
+        </div>
+
+        <div className="mb-3 grid gap-3 md:grid-cols-3">
+          <div className="panel">
+            <p className="muted text-xs font-semibold uppercase">
+              New Updates
+            </p>
+            <p className="mt-1 text-2xl font-bold">{posts.length}</p>
+          </div>
+          <div className="panel">
+            <p className="muted text-xs font-semibold uppercase">
+              From Others
+            </p>
+            <p className="mt-1 text-2xl font-bold">{communityPostCount}</p>
+          </div>
+          <div className="panel">
+            <p className="muted text-xs font-semibold uppercase">
+              Signals
+            </p>
+            <p className="mt-1 text-2xl font-bold">{totalCommunitySignals}</p>
+          </div>
+        </div>
+
+        <div className="mb-4 grid gap-3 lg:grid-cols-[1.2fr_0.8fr]">
+          <div className="panel">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h3 className="font-semibold">What happened while you were away</h3>
+              <Link href="/notifications" className="text-sm font-semibold">
+                Notifications
+              </Link>
+            </div>
+
+            {activityMoments.length === 0 ? (
+              <p className="muted text-sm">
+                Reactions, comments, follows, and messages will collect here.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {activityMoments.slice(0, 4).map((moment) => (
+                  <Link key={moment.id} href={moment.href} className="block">
+                    <div className="flex items-start gap-3">
+                      <span
+                        className={`mt-2 h-2.5 w-2.5 rounded-full ${
+                          moment.unread ? "bg-current" : "bg-[var(--border)]"
+                        }`}
+                        aria-hidden="true"
+                      />
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold">{moment.message}</p>
+                        <p className="muted mt-1 text-sm">
+                          {moment.detail}
+                        </p>
+                        <time className="muted mt-2 block text-xs font-semibold uppercase">
+                          {new Date(moment.created_at).toLocaleString()}
+                        </time>
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="panel">
+            <h3 className="font-semibold">Focus lanes</h3>
+            <div className="mt-3 space-y-2">
+              {laneSummaries
+                .filter((lane) => lane.posts > 0 || lane.signals > 0)
+                .slice(0, 5)
+                .map((lane) => (
+                  <button
+                    key={lane.focus}
+                    type="button"
+                    className="flex w-full items-center justify-between gap-3 rounded-md border border-[var(--border)] px-3 py-2 text-left text-sm"
+                    onClick={() => setSelectedFocus(lane.focus)}
+                  >
+                    <span className="font-semibold">{lane.focus}</span>
+                    <span className="muted">
+                      {lane.posts} updates / {lane.signals} signals
+                    </span>
+                  </button>
+                ))}
+              {laneSummaries.every(
+                (lane) => lane.posts === 0 && lane.signals === 0,
+              ) && (
+                <p className="muted text-sm">
+                  Focus activity appears as people post tagged check-ins.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
+          {focusAreas.map((focus) => {
+            const isSelected = selectedFocus === focus;
+
+            return (
+              <button
+                key={focus}
+                type="button"
+                className={
+                  isSelected
+                    ? "btn-primary shrink-0"
+                    : "btn-secondary shrink-0"
+                }
+                onClick={() => setSelectedFocus(focus)}
+              >
+                {focus}
+              </button>
+            );
+          })}
+        </div>
+
+        {posts.length === 0 ? (
+          <div className="panel">
+            <p className="font-semibold">No updates in your feed yet.</p>
+            <p className="muted mt-2 text-sm">
+              Follow people, join Circles, or post the first proof of progress.
+            </p>
+          </div>
+        ) : filteredPosts.length === 0 ? (
+          <div className="panel">
+            <p className="font-semibold">No {selectedFocus} updates yet.</p>
+            <p className="muted mt-2 text-sm">
+              Try another focus, or make the first {selectedFocus} check-in.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filteredPosts.slice(0, 4).map((post) => {
+              const username = post.profile?.username;
+              const displayName =
+                post.profile?.display_name || username || "Someone";
+
+              return (
+                <EditablePostCard
+                  key={post.id}
+                  post={post}
+                  canEdit={post.user_id === currentUserId}
+                  currentUserId={currentUserId}
+                  onSaved={updateSavedPost}
+                  header={
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                      <p className="font-semibold">
+                        {username ? (
+                          <Link href={`/user/${username}`}>@{username}</Link>
+                        ) : (
+                          displayName
+                        )}
+                      </p>
+                      {post.focus && (
+                        <span className="metric-pill metric-pill-proof text-xs">
+                          {post.focus}
+                        </span>
+                      )}
+                    </div>
+                  }
+                />
+              );
+            })}
+          </div>
+        )}
+      </section>
+
       <TodayModule summary={todaySummary} />
 
       <DailyCheckInComposer
@@ -577,6 +1018,63 @@ export default function Dashboard() {
         onChange={setNewPost}
         onSubmit={createPost}
       />
+
+      {rewardMoment && (
+        <section className="notice notice-success mb-8">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="font-semibold">{rewardMoment.title}</p>
+              <p className="mt-1 text-sm">{rewardMoment.detail}</p>
+            </div>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => setRewardMoment(null)}
+            >
+              Nice
+            </button>
+          </div>
+        </section>
+      )}
+
+      <section className="mb-8">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="section-heading">Dopamine Loops</h2>
+          <span className="muted text-sm">Instant feedback</span>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-3">
+          <div className="panel">
+            <span className="metric-pill metric-pill-success text-xs">
+              {todaySummary.hasCheckedInToday ? "Closed" : "Open"}
+            </span>
+            <p className="mt-3 font-semibold">Daily proof loop</p>
+            <p className="muted mt-1 text-sm">
+              {todaySummary.hasCheckedInToday
+                ? "You gave yourself a visible win today."
+                : "One check-in closes the loop for today."}
+            </p>
+          </div>
+          <div className="panel">
+            <span className="metric-pill metric-pill-connection text-xs">
+              {totalCommunitySignals}
+            </span>
+            <p className="mt-3 font-semibold">Social signals</p>
+            <p className="muted mt-1 text-sm">
+              Respects, comments, and check-ins make progress feel witnessed.
+            </p>
+          </div>
+          <div className="panel">
+            <span className="metric-pill metric-pill-proof text-xs">
+              {achievementBadges.length}
+            </span>
+            <p className="mt-3 font-semibold">Markers unlocked</p>
+            <p className="muted mt-1 text-sm">
+              Streaks and milestones turn repeated effort into visible proof.
+            </p>
+          </div>
+        </div>
+      </section>
 
       <section className="mb-8">
         <div className="mb-3 flex items-center justify-between">
@@ -877,30 +1375,6 @@ export default function Dashboard() {
         </section>
       )}
 
-      <section>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="section-heading">Recent Posts</h2>
-          <Link href="/" className="text-sm font-semibold">
-            Feed
-          </Link>
-        </div>
-
-        {posts.length === 0 ? (
-          <p className="muted panel">No posts yet.</p>
-        ) : (
-          <div className="space-y-3">
-            {posts.map((post) => (
-              <EditablePostCard
-                key={post.id}
-                post={post}
-                canEdit
-                currentUserId={currentUserId}
-                onSaved={updateSavedPost}
-              />
-            ))}
-          </div>
-        )}
-      </section>
     </main>
   );
 }

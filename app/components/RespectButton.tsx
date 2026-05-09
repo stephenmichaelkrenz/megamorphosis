@@ -1,6 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import {
+  ReactionCounts,
+  ReactionType,
+  emptyReactionCounts,
+  reactionOptions,
+} from "@/lib/reactions";
 import { supabase } from "@/lib/supabaseClient";
 import { RespectTargetType } from "@/types";
 
@@ -10,18 +16,30 @@ export default function RespectButton({
   currentUserId,
   initialCount,
   initiallyRespected,
+  initialReactionCounts,
+  initiallyReactedTypes,
 }: {
   targetId: string;
   targetType: RespectTargetType;
   currentUserId?: string | null;
   initialCount: number;
   initiallyRespected: boolean;
+  initialReactionCounts?: ReactionCounts;
+  initiallyReactedTypes?: ReactionType[];
 }) {
-  const [count, setCount] = useState(initialCount);
-  const [respected, setRespected] = useState(initiallyRespected);
+  const [counts, setCounts] = useState<ReactionCounts>({
+    ...emptyReactionCounts(),
+    ...(initialReactionCounts ?? { respect: initialCount }),
+  });
+  const [reactedTypes, setReactedTypes] = useState<Set<ReactionType>>(
+    new Set(
+      initiallyReactedTypes ??
+        (initiallyRespected ? (["respect"] as ReactionType[]) : []),
+    ),
+  );
   const [saving, setSaving] = useState(false);
 
-  const toggleRespect = async () => {
+  const toggleReaction = async (reactionType: ReactionType) => {
     setSaving(true);
     let actingUserId = currentUserId;
 
@@ -34,17 +52,18 @@ export default function RespectButton({
 
     if (!actingUserId) {
       setSaving(false);
-      alert("Log in to show respect.");
+      alert("Log in to react.");
       return;
     }
 
-    if (respected) {
+    if (reactedTypes.has(reactionType)) {
       const { error } = await supabase
         .from("respects")
         .delete()
         .eq("user_id", actingUserId)
         .eq("target_type", targetType)
-        .eq("target_id", targetId);
+        .eq("target_id", targetId)
+        .eq("reaction_type", reactionType);
 
       if (error) {
         setSaving(false);
@@ -52,8 +71,15 @@ export default function RespectButton({
         return;
       }
 
-      setRespected(false);
-      setCount((current) => Math.max(0, current - 1));
+      setReactedTypes((current) => {
+        const next = new Set(current);
+        next.delete(reactionType);
+        return next;
+      });
+      setCounts((current) => ({
+        ...current,
+        [reactionType]: Math.max(0, (current[reactionType] ?? 0) - 1),
+      }));
       setSaving(false);
       return;
     }
@@ -62,6 +88,7 @@ export default function RespectButton({
       user_id: actingUserId,
       target_type: targetType,
       target_id: targetId,
+      reaction_type: reactionType,
     });
 
     if (error) {
@@ -70,18 +97,37 @@ export default function RespectButton({
       return;
     }
 
-    setRespected(true);
-    setCount((current) => current + 1);
+    setReactedTypes((current) => new Set(current).add(reactionType));
+    setCounts((current) => ({
+      ...current,
+      [reactionType]: (current[reactionType] ?? 0) + 1,
+    }));
     setSaving(false);
   };
 
   return (
-    <button
-      onClick={toggleRespect}
-      disabled={saving}
-      className={respected ? "btn-secondary metric-pill-success" : "btn-primary"}
-    >
-      {respected ? "Respected" : "Respect"} ({count})
-    </button>
+    <div className="flex flex-wrap gap-2">
+      {reactionOptions.map((reaction) => {
+        const isActive = reactedTypes.has(reaction.type);
+        const count = counts[reaction.type] ?? 0;
+
+        return (
+          <button
+            key={reaction.type}
+            onClick={() => toggleReaction(reaction.type)}
+            disabled={saving}
+            className={
+              isActive
+                ? "btn-secondary metric-pill-success"
+                : reaction.type === "respect"
+                  ? "btn-primary"
+                  : "btn-secondary"
+            }
+          >
+            {isActive ? reaction.activeLabel : reaction.label} ({count})
+          </button>
+        );
+      })}
+    </div>
   );
 }
