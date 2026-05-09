@@ -70,7 +70,7 @@ export default function RootLayout({
                 Help
               </Link>
               <Link href="/launch" className="font-medium">
-                Launch
+                Start Here
               </Link>
               <Link href="/privacy" className="font-medium">
                 Privacy
